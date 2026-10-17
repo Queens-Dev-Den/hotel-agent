@@ -82,17 +82,16 @@ USE_MOCK_HOTEL = _bool("USE_MOCK_HOTEL", True)
 MOCK_HOTEL_PHONES = [p.strip() for p in os.getenv("MOCK_HOTEL_PHONES", "").split(",") if p.strip()]
 MAX_CALL_DURATION_S = _int("MAX_CALL_DURATION_S", 180)
 
-# --- WS1: Cost estimate (costs.py), list prices in USD as of Oct 2026 ------------
-# Gemini 2.5 Flash-Lite via Backboard: $0.10 / $0.40 per 1M input / output tokens
-BACKBOARD_USD_PER_M_IN = _float("BACKBOARD_USD_PER_M_IN", 0.10)
-BACKBOARD_USD_PER_M_OUT = _float("BACKBOARD_USD_PER_M_OUT", 0.40)
-# Voice agent LLM tokens (one combined count; ~90% input at the same model's rates)
-AGENT_LLM_USD_PER_M = _float("AGENT_LLM_USD_PER_M", 0.13)
-# ElevenLabs Agents: $0.08 per call minute on every paid plan (LLM billed separately)
-ELEVENLABS_USD_PER_MIN = _float("ELEVENLABS_USD_PER_MIN", 0.08)
-# Outbound phone line per minute (Twilio/SIP), an estimate
-TELEPHONY_USD_PER_MIN = _float("TELEPHONY_USD_PER_MIN", 0.014)
-# SerpApi Starter plan: $25 / 1,000 searches (the free plan's 250/month cost $0)
-SERPAPI_USD_PER_SEARCH = _float("SERPAPI_USD_PER_SEARCH", 0.025)
-# Resend: free tier (3,000 emails/month)
-EMAIL_USD_PER_SEND = _float("EMAIL_USD_PER_SEND", 0.0)
+# --- WS3: Voice (voice_agent.py) -----------------------------------------------
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "").strip()
+ELEVENLABS_AGENT_ID = os.getenv("ELEVENLABS_AGENT_ID", "").strip()
+# The imported Twilio number's ElevenLabs id (phnum_...), not the +1 number
+ELEVENLABS_AGENT_PHONE_NUMBER_ID = os.getenv("ELEVENLABS_AGENT_PHONE_NUMBER_ID", "").strip()
+ELEVENLABS_BASE_URL = (os.getenv("ELEVENLABS_BASE_URL", "").strip() or "https://api.elevenlabs.io").rstrip("/")
+ELEVENLABS_HTTP_TIMEOUT_S = _int("ELEVENLABS_HTTP_TIMEOUT_S", 15)
+# How often place_call polls the conversation while the call is live
+VOICE_POLL_INTERVAL_S = _float("VOICE_POLL_INTERVAL_S", 2.0)
+# Extra wait past MAX_CALL_DURATION_S for the call to wrap up (pipeline allows +30)
+TRANSCRIPT_WAIT_S = _int("TRANSCRIPT_WAIT_S", 20)
+# Re-fetches when a finished call's transcript is still empty
+TRANSCRIPT_RETRIES = _int("TRANSCRIPT_RETRIES", 4)
