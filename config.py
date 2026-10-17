@@ -70,3 +70,9 @@ BACKBOARD_MODEL = os.getenv("BACKBOARD_MODEL", "").strip() or "google/gemini-2.5
 BACKBOARD_TOKEN_BUDGET = _int("BACKBOARD_TOKEN_BUDGET", 1200)
 # Assistant that stores per-hotel call memories; created on first run if empty
 BACKBOARD_ASSISTANT_ID = os.getenv("BACKBOARD_ASSISTANT_ID", "").strip()
+
+# --- WS1: Pipeline (pipeline.py) -----------------------------------------------
+# Safety switch: dial MOCK_HOTEL_PHONES instead of the real hotels. Defaults ON.
+USE_MOCK_HOTEL = _bool("USE_MOCK_HOTEL", True)
+MOCK_HOTEL_PHONES = [p.strip() for p in os.getenv("MOCK_HOTEL_PHONES", "").split(",") if p.strip()]
+MAX_CALL_DURATION_S = _int("MAX_CALL_DURATION_S", 180)

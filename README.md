@@ -1,6 +1,21 @@
 # Team [X] — One-Shot Hotel Availability Agent (TechTO Fast & Frugal)
 
-Planning docs only. No code has been written yet. Each teammate owns one workstream doc.
+Each teammate owns one workstream doc.
+
+## Run it
+
+```bash
+git pull origin main
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env          # first time only; fill in the keys you have
+python -m pytest -q           # offline, no keys needed
+
+streamlit run app.py          # UI at http://localhost:8501
+MOCK_MODULES=voice,email python main.py "cheapest hotel in Toronto tonight"   # CLI
+```
+
+The UI sidebar has **Fake calls / Fake email / Fake search** toggles. Calls and email are faked by default, so nothing dials or sends. Real search needs `SERPAPI_API_KEY` (about 9 credits per run). Turn on Fake search to test without one. With real calls on, `USE_MOCK_HOTEL=true` (the default) dials `MOCK_HOTEL_PHONES` instead of the real hotels.
 
 **What it does:** one prompt in, then the 3 cheapest hotels are called **at the same time** by an ElevenLabs voice agent that asks whether a room is available for the dates. **It never books.** One email goes out with each hotel's availability and the **full transcript of every call**.
 
