@@ -1,6 +1,6 @@
 # Integration, Timeline & Demo Runbook
 
-**Owner:** Everyone
+**Owner:** Everyone · **T1** Richard · **T2** Isaac · **T3** Jordan · **T4** Zach
 
 ## Timeline
 

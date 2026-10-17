@@ -1,6 +1,6 @@
 # WS3 — ElevenLabs Voice Agent & Telephony
 
-**Owner:** Teammate 3 · **Module:** `voice_agent.py`
+**Owner:** Jordan (T3) · **Module:** `voice_agent.py`
 
 Call handling is 10 of the 30 points: IVR navigation, hold tolerance, natural turn-taking and confirmation extraction.
 

@@ -1,6 +1,6 @@
 # WS4 — Confirmation Extraction, Email & Pitch Deck
 
-**Owner:** Teammate 4 · **Modules:** `extractor.py`, `email_service.py`, the `record_confirmation` endpoint, the deck
+**Owner:** Zach (T4) · **Modules:** `extractor.py`, `email_service.py`, the `record_confirmation` endpoint, the deck
 
 The email **is** the verification. A wrong subject or a missing field means the run doesn't count.
 

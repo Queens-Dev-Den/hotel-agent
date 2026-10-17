@@ -1,6 +1,6 @@
 # WS1 — Discovery, Orchestration & UI
 
-**Owner:** Teammate 1 · **Modules:** `search_service.py`, `pipeline.py`, `main.py`, `app.py`, `config.py`, `telemetry.py`
+**Owner:** Richard (T1) · **Modules:** `search_service.py`, `pipeline.py`, `main.py`, `app.py`, `config.py`, `telemetry.py`
 
 You own the start and end of the run: the prompt comes in, the candidates go out, the failover loop runs, and the timer stops.
 
