@@ -182,7 +182,7 @@ def test_agent_tokens_counted_live_per_call(monkeypatch):
     )
     monkeypatch.setitem(sys.modules, "voice_agent", fake_voice)
     monkeypatch.setattr(pipeline, "add_agent_llm_tokens",
-                        lambda conv, usage: usage.__setitem__("agent_llm", usage.get("agent_llm", 0) + 100))
+                        lambda conv, usage, rank=None: usage.__setitem__("agent_llm", usage.get("agent_llm", 0) + 100))
     events = []
 
     r = pipeline.run("x", on_event=lambda kind, data: events.append((kind, data)))

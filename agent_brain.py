@@ -402,16 +402,34 @@ def agent_llm_context_tokens(conversation: dict) -> int:
     return sum(_category_usage(conversation, ("initiated_generation", "irreversible_generation")).values())
 
 
-def add_agent_llm_tokens(conversation: dict, usage: dict[str, int] | None) -> int:
+def add_agent_llm_tokens(conversation: dict, usage: dict[str, int] | None, rank: int | None = None) -> int:
     """Add one call's tokens to Run.telemetry.tokens. Call once per call.
 
-    "agent_llm": the headline number, matching the ElevenLabs dashboard.
-    "agent_llm_context": the full context processed, mostly cheap cache reads.
+    "agent_llm": the headline number (spoken replies, fresh input + output), matching the
+        ElevenLabs dashboard, split into "agent_llm_input" / "agent_llm_output".
+    "agent_llm_cache_read" / "agent_llm_cache_write": cached context on those replies
+        (not in the headline; billed at a fraction).
+    "agent_llm_context": everything the LLM processed, interrupted replies and cache included.
+    "agent_llm_credits": ElevenLabs LLM credits charged.
+    With `rank`, the same numbers are also kept per call as "call{rank}_<key>" for the UI.
     """
-    tokens = agent_llm_tokens(conversation)
+    spoken = agent_llm_usage(conversation)
+    tokens = spoken["input"] + spoken["output"]
+    charging = (conversation.get("metadata") or {}).get("charging") or {}
+    values = {
+        "agent_llm": tokens,
+        "agent_llm_input": spoken["input"],
+        "agent_llm_output": spoken["output"],
+        "agent_llm_cache_read": spoken["cache_read"],
+        "agent_llm_cache_write": spoken["cache_write"],
+        "agent_llm_context": agent_llm_context_tokens(conversation),
+        "agent_llm_credits": int(charging.get("llm_charge") or 0),
+    }
     if usage is not None:
-        usage["agent_llm"] = usage.get("agent_llm", 0) + tokens
-        usage["agent_llm_context"] = usage.get("agent_llm_context", 0) + agent_llm_context_tokens(conversation)
+        for key, n in values.items():
+            usage[key] = usage.get(key, 0) + n
+            if rank is not None:
+                usage[f"call{rank}_{key}"] = n
     return tokens
 
 
