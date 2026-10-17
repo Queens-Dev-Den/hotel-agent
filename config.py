@@ -35,3 +35,14 @@ RENTAL_FANOUT = _int("RENTAL_FANOUT", 2)
 HTTP_TIMEOUT_S = _int("HTTP_TIMEOUT_S", 10)
 # Replay raw API responses from .cache/ in dev so test loops don't burn quota
 SEARCH_CACHE = _bool("SEARCH_CACHE", False)
+
+# --- WS1: Pipeline (pipeline.py) -----------------------------------------------
+# Where the one email goes
+RECEIPT_TO_EMAIL = os.getenv("RECEIPT_TO_EMAIL", "").strip()
+# Safety switch: dial MOCK_HOTEL_PHONES instead of the real hotels. Defaults ON.
+USE_MOCK_HOTEL = _bool("USE_MOCK_HOTEL", True)
+MOCK_HOTEL_PHONES = [p.strip() for p in os.getenv("MOCK_HOTEL_PHONES", "").split(",") if p.strip()]
+MAX_CALL_DURATION_S = _int("MAX_CALL_DURATION_S", 180)
+TOOL_SERVER_PORT = _int("TOOL_SERVER_PORT", 8000)
+# Modules replaced by pipeline fakes, e.g. "voice,email" (must be empty at integration)
+MOCK_MODULES = {m.strip() for m in os.getenv("MOCK_MODULES", "").split(",") if m.strip()}
