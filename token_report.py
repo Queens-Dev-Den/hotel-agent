@@ -19,7 +19,7 @@ from contracts import Run
 RUN_FILE = Path("run_telemetry.json")  # written by telemetry.py (WS1)
 ARCHIVE = Path("telemetry_runs")
 STAGES = ["brain", "search", "recall", "call", "email"]
-TOKENS = ["backboard_parse", "backboard_extract", "backboard_total", "agent_llm", "agent_llm_cached"]
+TOKENS = ["backboard_parse", "backboard_extract", "backboard_total", "agent_llm", "agent_llm_context"]
 
 
 def archive_latest() -> None:
@@ -45,7 +45,7 @@ def row(run: Run) -> dict[str, float]:
     out["backboard_extract"] = t.tokens.get("backboard_extract", 0)
     out["backboard_total"] = t.tokens.get("backboard_in", 0) + t.tokens.get("backboard_out", 0)
     out["agent_llm"] = t.tokens.get("agent_llm", 0)
-    out["agent_llm_cached"] = t.tokens.get("agent_llm_cache_read", 0)
+    out["agent_llm_context"] = t.tokens.get("agent_llm_context", 0)
     return out
 
 
@@ -68,9 +68,8 @@ def report(runs: list[Run]) -> str:
         "",
         f"Backboard per session: avg {avg['backboard_total']:,.0f} / {budget:,} budget "
         f"(max {max(v['backboard_total'] for _, v in rows):,.0f}).",
-        f"Agent LLM per run (3 parallel calls): avg {avg['agent_llm']:,.0f}, "
-        f"of which {avg['agent_llm_cached'] / avg['agent_llm']:.0%} cached reads." if avg["agent_llm"]
-        else "Agent LLM per run (3 parallel calls): avg 0.",
+        f"Agent LLM per run (3 parallel calls): avg {avg['agent_llm']:,.0f} (matches the ElevenLabs dashboard); "
+        f"full context processed incl. cache: avg {avg['agent_llm_context']:,.0f}.",
         f"Total time: avg {avg['total_s']:.1f} s (target < 240 s).",
     ]
     return "\n".join(lines)

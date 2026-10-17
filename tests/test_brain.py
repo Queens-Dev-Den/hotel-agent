@@ -324,32 +324,38 @@ def _usage(inp, out, cache_read=0):
     }}}
 
 
-def test_agent_llm_tokens_counts_initiated_only():
-    # initiated_generation already includes irreversible_generation (identical on a call with no interruptions)
-    conv = {"metadata": {"charging": {"llm_usage": {
-        "irreversible_generation": _usage(122, 81, cache_read=3584),
-        "initiated_generation": _usage(451, 230, cache_read=7424),
-    }}}}
-    assert agent_brain.agent_llm_tokens(conv) == 451 + 230 + 7424
+REAL_CALL = {"metadata": {"charging": {"llm_usage": {  # voicemail call from the first real run
+    "irreversible_generation": _usage(122, 81, cache_read=3584),
+    "initiated_generation": _usage(451, 230, cache_read=7424),
+}}}}
 
 
-def test_agent_llm_tokens_irreversible_only():
-    conv = {"metadata": {"charging": {"llm_usage": {"irreversible_generation": _usage(100, 10)}}}}
+def test_agent_llm_tokens_match_dashboard():
+    # Spoken replies, fresh input + output, no cache: what the ElevenLabs dashboard shows
+    assert agent_brain.agent_llm_tokens(REAL_CALL) == 122 + 81
+
+
+def test_agent_llm_context_counts_everything_started():
+    assert agent_brain.agent_llm_context_tokens(REAL_CALL) == 451 + 230 + 7424
+
+
+def test_agent_llm_tokens_initiated_when_no_irreversible():
+    conv = {"metadata": {"charging": {"llm_usage": {"initiated_generation": _usage(100, 10, cache_read=500)}}}}
     assert agent_brain.agent_llm_tokens(conv) == 110
 
 
 def test_agent_llm_usage_breakdown():
-    conv = {"metadata": {"charging": {"llm_usage": {"initiated_generation": _usage(272, 132, cache_read=7552)}}}}
-    assert agent_brain.agent_llm_usage(conv) == {"input": 272, "cache_read": 7552, "cache_write": 0, "output": 132}
+    assert agent_brain.agent_llm_usage(REAL_CALL) == {"input": 122, "cache_read": 3584, "cache_write": 0, "output": 81}
 
 
 def test_agent_llm_tokens_falls_back_to_transcript():
     conv = {"metadata": {}, "transcript": [
-        {"role": "agent", "message": "Hi", "llm_usage": _usage(400, 15)},
+        {"role": "agent", "message": "Hi", "llm_usage": _usage(400, 15, cache_read=1000)},
         {"role": "user", "message": "Hello", "llm_usage": None},
         {"role": "agent", "message": "Thanks", "llm_usage": _usage(450, 10)},
     ]}
     assert agent_brain.agent_llm_tokens(conv) == 875
+    assert agent_brain.agent_llm_context_tokens(conv) == 1875
 
 
 def test_agent_llm_tokens_missing_everything():
@@ -361,11 +367,10 @@ def test_add_agent_llm_tokens_sums_across_calls():
     for conv in ({"transcript": [{"llm_usage": _usage(100, 10)}]}, {"transcript": [{"llm_usage": _usage(200, 20)}]}):
         agent_brain.add_agent_llm_tokens(conv, usage)
     assert usage["agent_llm"] == 330
-    assert usage["agent_llm_cache_read"] == 0
+    assert usage["agent_llm_context"] == 330
 
 
-def test_add_agent_llm_tokens_records_cache_reads():
+def test_add_agent_llm_tokens_records_both():
     usage = {}
-    conv = {"metadata": {"charging": {"llm_usage": {"initiated_generation": _usage(272, 132, cache_read=7552)}}}}
-    assert agent_brain.add_agent_llm_tokens(conv, usage) == 7956
-    assert usage == {"agent_llm": 7956, "agent_llm_cache_read": 7552}
+    assert agent_brain.add_agent_llm_tokens(REAL_CALL, usage) == 203
+    assert usage == {"agent_llm": 203, "agent_llm_context": 8105}
