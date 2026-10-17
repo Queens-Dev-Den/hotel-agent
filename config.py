@@ -17,6 +17,11 @@ def _int(name: str, default: int) -> int:
     return int(value) if value else default
 
 
+def _float(name: str, default: float) -> float:
+    value = os.getenv(name, "").strip()
+    return float(value) if value else default
+
+
 def _bool(name: str, default: bool) -> bool:
     value = os.getenv(name, "").strip().lower()
     return value in ("1", "true", "yes") if value else default
@@ -76,3 +81,17 @@ BACKBOARD_ASSISTANT_ID = os.getenv("BACKBOARD_ASSISTANT_ID", "").strip()
 USE_MOCK_HOTEL = _bool("USE_MOCK_HOTEL", True)
 MOCK_HOTEL_PHONES = [p.strip() for p in os.getenv("MOCK_HOTEL_PHONES", "").split(",") if p.strip()]
 MAX_CALL_DURATION_S = _int("MAX_CALL_DURATION_S", 180)
+
+# --- WS3: Voice (voice_agent.py) -----------------------------------------------
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "").strip()
+ELEVENLABS_AGENT_ID = os.getenv("ELEVENLABS_AGENT_ID", "").strip()
+# The imported Twilio number's ElevenLabs id (phnum_...), not the +1 number
+ELEVENLABS_AGENT_PHONE_NUMBER_ID = os.getenv("ELEVENLABS_AGENT_PHONE_NUMBER_ID", "").strip()
+ELEVENLABS_BASE_URL = (os.getenv("ELEVENLABS_BASE_URL", "").strip() or "https://api.elevenlabs.io").rstrip("/")
+ELEVENLABS_HTTP_TIMEOUT_S = _int("ELEVENLABS_HTTP_TIMEOUT_S", 15)
+# How often place_call polls the conversation while the call is live
+VOICE_POLL_INTERVAL_S = _float("VOICE_POLL_INTERVAL_S", 2.0)
+# Extra wait past MAX_CALL_DURATION_S for the call to wrap up (pipeline allows +30)
+TRANSCRIPT_WAIT_S = _int("TRANSCRIPT_WAIT_S", 20)
+# Re-fetches when a finished call's transcript is still empty
+TRANSCRIPT_RETRIES = _int("TRANSCRIPT_RETRIES", 4)
