@@ -20,7 +20,7 @@ import pipeline
 STAGES = [
     ("brain", "Read prompt"),
     ("search", "Find hotels"),
-    ("recall", "Check past calls"),
+    ("recall", "Past calls"),
     ("call", "Call hotels"),
     ("retry", "Call 3 more"),  # only shown when no first-round hotel confirmed a room with a rate
     ("email", "Send email"),
@@ -99,8 +99,10 @@ CSS = """
 }
 [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stBottomBlockContainer"] { background: transparent !important; }
 [data-testid="stAppViewContainer"] > * { position: relative; z-index: 1; }
-header[data-testid="stHeader"] { background: transparent; }
-.block-container { max-width: 1120px; margin: 0 auto; padding-top: 2.25rem; }
+/* hide Streamlit's own chrome: top bar, toolbar, status widget, footer */
+header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"],
+[data-testid="stStatusWidget"], footer { display: none !important; }
+.block-container { max-width: 1080px; margin: 0 auto; padding: 3.5rem 1.5rem 4rem; }
 /* no sidebar: hide it and its open/close arrow */
 section[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"], [data-testid="collapsedControl"] { display: none !important; }
 
@@ -112,45 +114,58 @@ section[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"], [da
 }
 
 /* header */
-.hdr { display: flex; align-items: center; justify-content: center; gap: .8rem; }
-.hdr h1 { font-size: var(--fs-3xl); font-weight: 700; margin: 0; letter-spacing: -0.02em; line-height: 1.1; color: var(--text); }
-.hdr .ic { width: 2.2rem; height: 2.2rem; color: #A78BFA; }
-.sub { color: var(--muted); font-size: var(--fs-lg); margin: .4rem 0 .9rem; text-align: center; }
-.how { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin-bottom: .8rem; }
-.live { display: flex; justify-content: center; margin-bottom: 1.4rem; }
-.chip { display: inline-flex; align-items: center; gap: .45rem; padding: .45rem .85rem; border-radius: 999px;
-  background: rgba(255,255,255,.10); border: 1px solid var(--glass-rim); color: var(--text); font-size: var(--fs-sm);
-  font-weight: 500; backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
-.chip b { color: #A78BFA; font-weight: 700; }
+.hdr { display: flex; align-items: center; justify-content: center; gap: .75rem; }
+.hdr h1 { font-size: 2.75rem; font-weight: 800; margin: 0; letter-spacing: -0.035em; line-height: 1.05;
+  background: linear-gradient(135deg, #FFFFFF 30%, #C4B5FD 100%); -webkit-background-clip: text; background-clip: text;
+  color: transparent; }
+.hdr .ic { width: 2.5rem; height: 2.5rem; color: #A78BFA; filter: drop-shadow(0 4px 14px rgba(124,58,237,.55)); }
+.sub { color: var(--muted); font-size: var(--fs-lg); line-height: 1.55; margin: .7rem auto 1.4rem; text-align: center;
+  max-width: 600px; text-wrap: balance; }
+.how { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .35rem .4rem; margin-bottom: 2.2rem; }
+.chip { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .75rem; border-radius: 999px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.10); color: var(--muted); font-size: var(--fs-xs);
+  font-weight: 500; white-space: nowrap; }
+.chip .ic { color: #A78BFA; }
+.sep { color: rgba(255,255,255,.28); font-size: var(--fs-md); }
+
+/* section headings between the result blocks */
+.sec { display: flex; align-items: center; gap: .75rem; margin: 2rem 0 .9rem; color: var(--faint); font-size: var(--fs-xs);
+  font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.sec::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,.14), transparent); }
 
 /* Streamlit widgets: labels, inputs, the Go button */
 .stApp label, .stApp [data-testid="stWidgetLabel"] p { font-size: var(--fs-sm) !important; font-weight: 600 !important; color: var(--muted) !important; }
-div[data-baseweb="input"], div[data-baseweb="textarea"] { background: rgba(255,255,255,.10) !important;
+/* the search bar: one glass panel holding both inputs and Go */
+div[data-testid="stForm"] { background: rgba(255,255,255,.05); border: 1px solid var(--glass-rim) !important;
+  border-radius: var(--r-lg); padding: 1.1rem 1.25rem 1.25rem; box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); margin-bottom: 1.6rem; }
+div[data-baseweb="input"], div[data-baseweb="textarea"] { background: rgba(5,8,22,.55) !important;
   border: 1px solid var(--glass-rim) !important; border-radius: var(--r-sm) !important;
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
 div[data-baseweb="input"] input, div[data-baseweb="textarea"] textarea { background: transparent !important;
-  color: var(--text) !important; font-size: var(--fs-md) !important; min-height: 2.75rem; }
+  color: var(--text) !important; font-size: var(--fs-md) !important; min-height: 3rem; padding-left: .9rem !important; }
+div[data-baseweb="input"] input::placeholder { color: var(--faint) !important; opacity: 1; }
 div[data-baseweb="input"]:focus-within, div[data-baseweb="textarea"]:focus-within { border-color: #A78BFA !important;
   box-shadow: 0 0 0 3px rgba(167,139,250,.3) !important; }
 div[data-testid="stFormSubmitButton"] button {
   background: var(--primary) !important; border: 0 !important;
-  color: #fff !important; min-height: 2.9rem; border-radius: var(--r-sm) !important; cursor: pointer;
-  box-shadow: 0 2px 8px rgba(2,4,16,.35); transition: background .15s ease-out; }
+  color: #fff !important; min-height: 3.05rem; border-radius: var(--r-sm) !important; cursor: pointer;
+  background-image: linear-gradient(135deg, #8B5CF6, #6D28D9) !important;
+  box-shadow: 0 6px 20px rgba(124,58,237,.45); transition: transform .15s ease-out, box-shadow .15s ease-out; }
 div[data-testid="stFormSubmitButton"] button p { font-size: var(--fs-lg) !important; font-weight: 700 !important; color: #fff !important; }
-div[data-testid="stFormSubmitButton"] button:hover { background: var(--primary-hover) !important; }
+div[data-testid="stFormSubmitButton"] button:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(124,58,237,.55); }
 div[data-testid="stFormSubmitButton"] button:disabled { opacity: .45; box-shadow: none; transform: none; }
 
-.mode { display: inline-flex; gap: .45rem; align-items: center; padding: .4rem .8rem; border-radius: 999px;
-  font-weight: 700; font-size: var(--fs-sm); border: 1px solid currentColor; background: rgba(0,0,0,.18); }
-
 /* progress rail */
-.rail { display: flex; flex-wrap: wrap; gap: .7rem; margin: .4rem 0 1.4rem; }
-.step { flex: 1 1 160px; border-radius: var(--r-md); padding: .85rem 1rem; display: flex; gap: .7rem; align-items: center; min-height: 72px; }
-.step .dot { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+.rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .6rem; margin: 0 0 1.6rem; }
+.step { border-radius: var(--r-md); padding: .8rem .9rem; display: flex; gap: .65rem; align-items: center; min-height: 68px; }
+.step > div:last-child { min-width: 0; }
+.step .dot { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
              border: 2px solid rgba(255,255,255,.4); color: var(--idle); font-weight: 700; font-size: var(--fs-sm); flex: none;
              background: rgba(255,255,255,.06); }
-.step .lbl { font-weight: 700; font-size: var(--fs-md); }
-.step .meta { color: var(--muted); font-size: var(--fs-xs); line-height: 1.35; margin-top: .1rem; }
+.step .lbl { font-weight: 700; font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.step .meta { color: var(--faint); font-size: .75rem; line-height: 1.35; margin-top: .15rem;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .step.done .dot { background: var(--primary); border-color: var(--primary); color: #fff; }
 .step.running { border-color: rgba(34,211,238,.6); }
 .step.running .dot { border-color: var(--live); color: var(--live); }
@@ -158,7 +173,12 @@ div[data-testid="stFormSubmitButton"] button:disabled { opacity: .45; box-shadow
 
 /* call cards */
 .card { border-radius: var(--r-lg); padding: 1.25rem 1.35rem; display: flex; flex-direction: column; gap: .6rem;
-        min-height: 360px; transition: border-color .2s ease-out, box-shadow .2s ease-out; }
+        height: 100%; min-height: 340px; transition: border-color .2s ease-out, box-shadow .2s ease-out, transform .2s ease-out; }
+.card:hover { transform: translateY(-2px); box-shadow: 0 14px 34px rgba(2,4,16,.5), inset 0 1px 0 rgba(255,255,255,.08); }
+div[data-testid="stColumn"]:has(.card) > div, div[data-testid="stColumn"]:has(.card) [data-testid="stVerticalBlock"],
+div[data-testid="stColumn"]:has(.card) [data-testid="stElementContainer"],
+div[data-testid="stColumn"]:has(.card) [data-testid="stMarkdown"],
+div[data-testid="stColumn"]:has(.card) [data-testid="stMarkdownContainer"] { height: 100%; }
 .card .top { display: flex; justify-content: space-between; align-items: center; }
 .rank { background: rgba(255,255,255,.14); color: var(--text); border-radius: 999px; padding: .2rem .7rem;
         font-size: var(--fs-xs); font-weight: 700; letter-spacing: .02em; }
@@ -198,17 +218,25 @@ div[data-testid="stFormSubmitButton"] button:disabled { opacity: .45; box-shadow
 .note { color: var(--faint); font-size: var(--fs-sm); font-style: italic; margin-top: .7rem; }
 
 /* metrics strip */
-.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .7rem; margin: 1.4rem 0; }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .7rem; margin: 0 0 .4rem; }
 .metric { border-radius: var(--r-md); padding: .95rem 1.1rem; }
 .metric .k { color: var(--muted); font-size: var(--fs-xs); font-weight: 600; display: flex; gap: .45rem; align-items: center;
   text-transform: uppercase; letter-spacing: .06em; }
-.metric .v { font-size: var(--fs-2xl); font-weight: 600; margin-top: .25rem; color: var(--text); }
+.metric .v { font-size: var(--fs-xl); font-weight: 600; margin-top: .3rem; color: var(--text); }
 
 .empty { border-style: dashed; border-radius: var(--r-lg); padding: 2.75rem; text-align: center; color: var(--muted); font-size: var(--fs-md); }
 
 /* tabs, code and tables on glass */
 div[data-testid="stTabs"] button p { font-size: var(--fs-md) !important; font-weight: 600 !important; }
 div[data-testid="stCode"] pre, div[data-testid="stDataFrame"] { background: rgba(6,4,24,.55) !important; border-radius: var(--r-sm); }
+
+@media (max-width: 640px) {
+  .block-container { padding: 2rem 1rem 3rem; }
+  .hdr h1 { font-size: 2.1rem; } .hdr .ic { width: 2rem; height: 2rem; }
+  .sub { font-size: var(--fs-md); } .sep { display: none; }
+  div[data-testid="stForm"] { padding: .9rem; }
+}
+@media (prefers-reduced-motion: reduce) { .card, .card:hover, div[data-testid="stFormSubmitButton"] button { transition: none; transform: none; } }
 
 @media (prefers-reduced-motion: no-preference) {
   .step.running .dot, .card.s-oncall .pill { animation: pulse 1.6s ease-in-out infinite; }
@@ -373,6 +401,7 @@ def _render_cards(state: dict) -> None:
         _html(f'<div class="empty">{_icon("hotel")}&nbsp; The cheapest callable hotels appear here after the search.</div>')
         return
     nights = max((req.check_out - req.check_in).days, 1) if req else 1
+    _html('<div class="sec">Hotels we called</div>')
     for row in range(0, len(cands), 3):  # a retry round adds a second row
         for col, c in zip(st.columns(3, gap="medium"), cands[row:row + 3]):
             with col:
@@ -422,7 +451,7 @@ def _render_metrics(state: dict, started: float) -> None:
     email = "Sent" if run and run.email else ("Pending" if not state.get("error") else "Not sent")
     tiles = [("clock", "Total time", _fmt_s(elapsed)), ("cpu", "Tokens", f"{tokens:,}"),
              ("search", "SerpApi searches", str(t.get("serpapi_searches", 0))), ("mail", "Email", email)]
-    _html('<div class="metrics">' + "".join(
+    _html('<div class="sec">This run</div><div class="metrics">' + "".join(
         f'<div class="metric"><div class="k">{_icon(i)} {k}</div><div class="v mono">{_e(v)}</div></div>'
         for i, k, v in tiles) + "</div>")
 
@@ -452,7 +481,7 @@ def _render_token_breakdown(run, backboard: int, agent: int) -> None:
 def _render_details(run) -> None:
     t = run.telemetry.tokens
     backboard = t.get("backboard_in", 0) + t.get("backboard_out", 0)
-    st.markdown("**Token breakdown**")
+    _html('<div class="sec">Token breakdown</div>')
     _render_token_breakdown(run, backboard, t.get("agent_llm", 0))
 
 
@@ -465,13 +494,10 @@ _html(
     '<div class="sub">Type what you need. An AI voice agent phones the 3 cheapest hotels at the same time '
     'and emails you who has a room.</div>'
     '<div class="how">'
-    f'<span class="chip">{_icon("search")} <b>1</b> Finds hotels within '
-    f'{config.SEARCH_DOWNTOWN_KM:g} km of downtown</span>'
-    f'<span class="chip">{_icon("phonecall")} <b>2</b> Calls the 3 cheapest at once</span>'
-    f'<span class="chip">{_icon("check")} <b>3</b> Confirms a room and the rate</span>'
-    f'<span class="chip">{_icon("mail")} <b>4</b> Emails you the results</span></div>'
-    f'<div class="live"><span class="mode s-unavailable">{_icon("alert")} Live: real calls to the real hotels and '
-    'a real email. The agent only asks about availability and the rate, it never books.</span></div>'
+    f'<span class="chip">{_icon("search")} Finds hotels within {config.SEARCH_DOWNTOWN_KM:g} km of downtown</span>'
+    f'<span class="sep">›</span><span class="chip">{_icon("phonecall")} Calls the 3 cheapest at once</span>'
+    f'<span class="sep">›</span><span class="chip">{_icon("check")} Confirms a room and rate</span>'
+    f'<span class="sep">›</span><span class="chip">{_icon("mail")} Emails you the results</span></div>'
 )
 
 
