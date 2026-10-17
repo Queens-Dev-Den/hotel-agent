@@ -36,13 +36,41 @@ HTTP_TIMEOUT_S = _int("HTTP_TIMEOUT_S", 10)
 # Replay raw API responses from .cache/ in dev so test loops don't burn quota
 SEARCH_CACHE = _bool("SEARCH_CACHE", False)
 
-# --- WS1: Pipeline (pipeline.py) -----------------------------------------------
-# Where the one email goes
+
+# --- Competition / pipeline (shared) -------------------------------------------
+# Team number from organizers -> subject "Team # {TEAM_NO} - Hotel Reservation Confirmed!"
+TEAM_NO = os.getenv("TEAM_NO", "").strip()
+# Where the availability email (with call transcripts) is sent
 RECEIPT_TO_EMAIL = os.getenv("RECEIPT_TO_EMAIL", "").strip()
+# Modules replaced by mocks.py fixtures, e.g. MOCK_MODULES=search,brain (see git-workflow.md)
+MOCK_MODULES = frozenset(m.strip() for m in os.getenv("MOCK_MODULES", "").split(",") if m.strip())
+
+# --- WS4: Email + tool endpoint (email_service.py, tool_server.py) -------------
+# resend | smtp
+EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "resend").strip().lower() or "resend"
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
+EMAIL_FROM = os.getenv("EMAIL_FROM", "onboarding@resend.dev").strip() or "onboarding@resend.dev"
+# Gmail SMTP fallback (an app password, not the account password)
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com").strip() or "smtp.gmail.com"
+SMTP_PORT = _int("SMTP_PORT", 587)
+SMTP_USER = os.getenv("SMTP_USER", "").strip()
+SMTP_APP_PASSWORD = os.getenv("SMTP_APP_PASSWORD", "").strip()
+# Public URL of the record_availability endpoint (ngrok/cloudflared/deploy)
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")
+# Shared secret the ElevenLabs server tool sends in X-Tool-Secret
+TOOL_SHARED_SECRET = os.getenv("TOOL_SHARED_SECRET", "").strip()
+TOOL_SERVER_PORT = _int("TOOL_SERVER_PORT", 8000)
+
+# --- WS2: Backboard (agent_brain.py) -------------------------------------------
+BACKBOARD_API_KEY = os.getenv("BACKBOARD_API_KEY", "").strip()
+BACKBOARD_BASE_URL = (os.getenv("BACKBOARD_BASE_URL", "").strip() or "https://app.backboard.io/api").rstrip("/")
+# "<llm_provider>/<model_name>"; gemini-2.5-flash-lite won the Phase 0 latency test
+BACKBOARD_MODEL = os.getenv("BACKBOARD_MODEL", "").strip() or "google/gemini-2.5-flash-lite"
+# Hard cap per session (see docs/architecture.md token strategy)
+BACKBOARD_TOKEN_BUDGET = _int("BACKBOARD_TOKEN_BUDGET", 1200)
+
+# --- WS1: Pipeline (pipeline.py) -----------------------------------------------
 # Safety switch: dial MOCK_HOTEL_PHONES instead of the real hotels. Defaults ON.
 USE_MOCK_HOTEL = _bool("USE_MOCK_HOTEL", True)
 MOCK_HOTEL_PHONES = [p.strip() for p in os.getenv("MOCK_HOTEL_PHONES", "").split(",") if p.strip()]
 MAX_CALL_DURATION_S = _int("MAX_CALL_DURATION_S", 180)
-TOOL_SERVER_PORT = _int("TOOL_SERVER_PORT", 8000)
-# Modules replaced by pipeline fakes, e.g. "voice,email" (must be empty at integration)
-MOCK_MODULES = {m.strip() for m in os.getenv("MOCK_MODULES", "").split(",") if m.strip()}
