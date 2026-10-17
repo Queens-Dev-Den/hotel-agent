@@ -1,5 +1,5 @@
 """WS4: build and send the single email: the cheapest available hotel with its price for
-the stay, reservation # (if any), call-recording link and transcript.
+the stay, call-recording link and transcript.
 
 Plain text only. Resend first, Gmail SMTP fallback.
 """
@@ -126,13 +126,8 @@ def stay_price_text(h: HotelSection, n: int) -> str:
 
 
 def _extras(h: HotelSection) -> str:
-    """Reservation # and recording link for the one-line summary of other hotels."""
-    parts = []
-    if h.reservation_number:
-        parts.append(f"reservation # {h.reservation_number}")
-    if h.audio_url:
-        parts.append(f"recording {h.audio_url}")
-    return "".join(f", {p}" for p in parts)
+    """Recording link for the one-line summary of other hotels."""
+    return f", recording {h.audio_url}" if h.audio_url else ""
 
 
 def render_body(payload: EmailPayload) -> str:
@@ -159,7 +154,6 @@ def render_body(payload: EmailPayload) -> str:
         f"Hotel Name: {h.name}",
         f"Address: {h.address}",
         f"Phone: {h.phone}",
-        f"Reservation #: {h.reservation_number or 'Not obtained'}",
         f"Reservation Date: {req.check_in.isoformat()} to {req.check_out.isoformat()} ({_plural(n, 'night')})",
         f"Price for Stay: {stay_price_text(h, n)}",
         f"Call Recording: {h.audio_url or 'Not available'}",

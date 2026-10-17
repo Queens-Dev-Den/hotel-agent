@@ -63,9 +63,9 @@ Defined in `telemetry.py` and serialized to `run_telemetry.json`. Each module wr
 
 - **Hotel name, address and phone in the email come from `candidates[]`**, not from the call.
 - **Availability comes from the call** (`availability[]`). If a call produced no answer (voicemail, no answer, error), the email says so for that hotel instead of guessing.
-- **The email highlights the cheapest available hotel** (lowest quoted rate among hotels that said yes; search-price order when there's no quote; the cheapest hotel overall if none said yes). Only **its** transcript is included, verbatim. Every transcript is still saved in `calls[].transcript` and `run_telemetry.json`. The other hotels get one line each: status, nightly rate, reservation # (if any) and recording link.
+- **The email highlights the cheapest available hotel** (lowest quoted rate among hotels that said yes; search-price order when there's no quote; the cheapest hotel overall if none said yes). Only **its** transcript is included, verbatim. Every transcript is still saved in `calls[].transcript` and `run_telemetry.json`. The other hotels get one line each: status, nightly rate and recording link.
 - **Price for Stay** is the call's nightly `quoted_rate` × nights. With no quote, it falls back to the search's `total_price`, labelled as the online price.
-- **Reservation #** is a normal field: the number if the hotel gave one, otherwise "Not obtained".
+- **No reservation #** in the email. The organizers called it optional and we never book; a number the hotel volunteers is still kept in `availability[].reservation_number` / `run_telemetry.json`.
 - **Call Recording** is `ELEVENLABS_CONVERSATION_URL` with the call's `conversation_id`. Fake (`mock-`) and failed calls get "Not available". A missing link logs a warning but never blocks the email.
 - `stage_ms.call` is the wall-clock time of the slowest call, since the calls overlap.
 - `tokens.agent_llm` is the sum across the 3 calls.
