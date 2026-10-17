@@ -152,3 +152,17 @@ def test_serpapi_key_not_logged_by_httpx():
 
     import search_service  # noqa: F401  (sets the httpx logger level on import)
     assert not logging.getLogger("httpx").isEnabledFor(logging.INFO)
+
+
+def test_fake_call_quotes_online_nightly_price():
+    from datetime import date
+
+    from agent_brain import build_call_plan
+    from contracts import HotelCandidate, HotelRequest
+
+    request = HotelRequest(city="Toronto", check_in=date(2026, 11, 2), check_out=date(2026, 11, 4))
+    candidate = HotelCandidate(rank=1, name="H", address="1 King St", phone_e164="+14165550101",
+                               total_price=190.0, source="serpapi_hotel")
+    result = pipeline._mock_place_call(build_call_plan(request, candidate, "r1"))
+    assert result.availability.quoted_rate == 95.0  # $190 total / 2 nights
+    assert "$95 a night" in result.transcript
