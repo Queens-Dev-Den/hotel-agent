@@ -26,6 +26,7 @@ STAGES = [
     ("email", "Send email"),
 ]
 POLL_S = 0.25
+DEFAULT_RECIPIENT = "hackathon@techto.org"  # pre-filled in the email box; whatever is typed there wins
 
 # Lucide icons (lucide.dev, ISC licence): official SVG bodies, 24x24 stroke. SVG, not emoji.
 ICONS = {
@@ -139,14 +140,18 @@ section[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"], [da
 div[data-testid="stForm"] { background: rgba(255,255,255,.05); border: 1px solid var(--glass-rim) !important;
   border-radius: var(--r-lg); padding: 1.1rem 1.25rem 1.25rem; box-shadow: var(--glass-shadow);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); margin-bottom: 1.6rem; }
-div[data-baseweb="input"], div[data-baseweb="textarea"] { background: rgba(5,8,22,.55) !important;
-  border: 1px solid var(--glass-rim) !important; border-radius: var(--r-sm) !important;
-  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
-div[data-baseweb="input"] input, div[data-baseweb="textarea"] textarea { background: transparent !important;
-  color: var(--text) !important; font-size: var(--fs-md) !important; min-height: 3rem; padding-left: .9rem !important; }
-div[data-baseweb="input"] input::placeholder { color: var(--faint) !important; opacity: 1; }
-div[data-baseweb="input"]:focus-within, div[data-baseweb="textarea"]:focus-within { border-color: #A78BFA !important;
-  box-shadow: 0 0 0 3px rgba(167,139,250,.3) !important; }
+/* text inputs: a clearly defined dark well with a visible rim (Streamlit's own border matches its fill) */
+div[data-testid="stTextInputRootElement"] { background: rgba(4,6,18,.78) !important;
+  border: 1.5px solid rgba(255,255,255,.26) !important; border-radius: var(--r-sm) !important; min-height: 3rem;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.45); transition: border-color .15s ease-out, box-shadow .15s ease-out; }
+div[data-testid="stTextInputRootElement"] > div { background: transparent !important; }
+div[data-testid="stTextInputRootElement"]:hover { border-color: rgba(255,255,255,.42) !important; }
+div[data-testid="stTextInputRootElement"]:focus-within { border-color: #A78BFA !important;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.45), 0 0 0 3px rgba(167,139,250,.35) !important; }
+div[data-testid="stTextInputRootElement"] input { background: transparent !important; color: var(--text) !important;
+  font-size: var(--fs-md) !important; padding-left: .95rem !important; caret-color: #C4B5FD; }
+div[data-testid="stTextInputRootElement"] input::placeholder { color: var(--faint) !important; opacity: 1; }
+.stApp [data-testid="stTextInput"] label p { color: var(--text) !important; }
 div[data-testid="stFormSubmitButton"] button {
   background: var(--primary) !important; border: 0 !important;
   color: #fff !important; min-height: 3.05rem; border-radius: var(--r-sm) !important; cursor: pointer;
@@ -508,7 +513,7 @@ config.USE_MOCK_HOTEL, config.MOCK_HOTEL_PHONES = False, []
 with st.form("prompt", border=False):
     c1, c2, c3 = st.columns([5, 3, 1.2], vertical_alignment="bottom")
     prompt = c1.text_input("What do you need?", placeholder="cheapest hotel in Toronto tonight")
-    email = c2.text_input("Send the results to", value=config.RECEIPT_TO_EMAIL, placeholder="you@example.com")
+    email = c2.text_input("Send the results to", value=DEFAULT_RECIPIENT, placeholder="you@example.com")
     go = c3.form_submit_button("Go", type="primary", use_container_width=True)
 
 rail_box = st.empty()
