@@ -57,7 +57,7 @@ def _apply(state: dict, kind: str, data: dict) -> None:
         state["stages"][data["name"]] = {"status": "running", "started": now}
     elif kind == "stage_done":
         state["stages"][data["name"]] = {"status": "done", "ms": data["ms"]}
-    elif kind in ("request", "candidates", "run", "error"):
+    elif kind in ("request", "candidates", "run", "error", "tokens"):
         state[kind] = data[kind]
     elif kind == "done":
         state["run"] = data["run"]
@@ -194,7 +194,12 @@ def _render_summary(state: dict, started: float) -> None:
         return
     run = state.get("run")
     if run is None:
-        st.caption(f"Running… {_fmt_s(time.monotonic() - started)}")
+        t = state.get("tokens") or {}
+        backboard = t.get("backboard_in", 0) + t.get("backboard_out", 0)
+        agent = t.get("agent_llm", 0)
+        st.caption(f"Running… {_fmt_s(time.monotonic() - started)} · tokens so far: **{backboard + agent:,}** "
+                   f"(Backboard {backboard:,} · voice agent {agent:,}) · SerpApi searches: "
+                   f"{t.get('serpapi_searches', 0)}")
         return
     lines = costs.estimate(run)
     m1, m2, m3, m4 = st.columns(4)

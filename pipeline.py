@@ -21,7 +21,7 @@ from datetime import date, datetime, timedelta, timezone
 import config
 import telemetry
 import tool_server
-from agent_brain import build_call_plan, fallback_extract, recall_hotel_notes, remember_run
+from agent_brain import add_agent_llm_tokens, build_call_plan, fallback_extract, recall_hotel_notes, remember_run
 from contracts import (
     Availability,
     CallPlan,
@@ -40,7 +40,8 @@ JOIN_GRACE_S = 30
 MOCK_CALL_DELAY_S = 0.0
 
 # Progress callback: on_event(kind, data). Kinds: stage_start {name}, stage_done {name, ms},
-# request {request}, candidates {candidates}, call_start {rank}, call_done {call}, done {run}
+# request {request}, candidates {candidates}, call_start {rank}, call_done {call},
+# tokens {tokens} (running totals, after every stage and every call), done {run}
 Emit = Callable[[str, dict], None]
 
 
@@ -144,9 +145,10 @@ def _dial_targets(plans: list[CallPlan]) -> list[CallPlan]:
     ]
 
 
-def _call_all(plans: list[CallPlan], emit: Emit = _no_emit) -> list[CallResult]:
+def _call_all(plans: list[CallPlan], emit: Emit = _no_emit,
+              on_done: Callable[[CallResult], None] = lambda call: None) -> list[CallResult]:
     """Every call at once. Each is capped; one slow or failing call never blocks the rest.
-    Results are reported as each call ends, and returned in candidate order."""
+    Results are reported as each call ends (on_done, then emit), and returned in candidate order."""
     place_call = _place_call()
     cap = config.MAX_CALL_DURATION_S + JOIN_GRACE_S
     pool = ThreadPoolExecutor(max_workers=len(plans))
@@ -168,10 +170,12 @@ def _call_all(plans: list[CallPlan], emit: Emit = _no_emit) -> list[CallResult]:
                 log.warning("call %d failed: %s", rank, exc)
                 results[rank] = CallResult(candidate_rank=rank, conversation_id="", outcome="error",
                                            duration_s=round(time.monotonic() - started, 1))
+            on_done(results[rank])
             emit("call_done", {"call": results[rank]})
     for rank in pending.values():
         log.warning("call %d hit the %ds cap", rank, cap)
         results[rank] = CallResult(candidate_rank=rank, conversation_id="", outcome="error", duration_s=float(cap))
+        on_done(results[rank])
         emit("call_done", {"call": results[rank]})
     pool.shutdown(wait=False, cancel_futures=True)  # don't wait on a hung call thread
     return [results[plan.candidate.rank] for plan in plans]
@@ -197,6 +201,19 @@ def _stage(r: Run, name: str, emit: Emit):
     with telemetry.stage(r, name):
         yield
     emit("stage_done", {"name": name, "ms": r.telemetry.stage_ms[name]})
+    emit("tokens", {"tokens": dict(r.telemetry.tokens)})
+
+
+def _count_agent_tokens(r: Run, call: CallResult, emit: Emit) -> None:
+    """Add one finished call's voice-agent LLM tokens as soon as it ends (docs/voice-handoff.md §3)."""
+    if _mocked("voice") or not call.conversation_id:
+        return
+    try:
+        import voice_agent
+        add_agent_llm_tokens(voice_agent.conversation_details(call.conversation_id), r.telemetry.tokens)
+    except Exception as exc:  # token counting must never fail a call
+        log.warning("agent token count failed for call %d: %s", call.candidate_rank, exc)
+    emit("tokens", {"tokens": dict(r.telemetry.tokens)})
 
 
 def run(prompt: str, *, callback_email: str | None = None, on_event: Emit | None = None) -> Run:
@@ -231,10 +248,11 @@ def run(prompt: str, *, callback_email: str | None = None, on_event: Emit | None
             tool_server.register_run(r, c)
 
     with _stage(r, "call", emit):
-        r.calls = _call_all(_dial_targets(plans), emit)
+        r.calls = _call_all(_dial_targets(plans), emit, lambda call: _count_agent_tokens(r, call, emit))
 
     # tool result -> call's own answer -> transcript regex -> Backboard (WS4)
     tool_server.resolve_availability(r, fallback=fallback_extract, usage=r.telemetry.tokens)
+    emit("tokens", {"tokens": dict(r.telemetry.tokens)})
 
     with _stage(r, "email", emit):
         _send()(r)

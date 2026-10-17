@@ -109,7 +109,8 @@ def test_progress_events_in_order(monkeypatch):
     events = []
     pipeline.run("x", on_event=lambda kind, data: events.append((kind, data)))
 
-    kinds = [k for k, _ in events]
+    assert any(k == "tokens" for k, _ in events)
+    kinds = [k for k, _ in events if k != "tokens"]
     assert kinds[:4] == ["stage_start", "stage_done", "request", "stage_start"]
     assert kinds[-3:] == ["stage_start", "stage_done", "done"]
     assert [d["call"].candidate_rank for k, d in events if k == "call_done"] == [3, 2, 1]
@@ -166,3 +167,26 @@ def test_fake_call_quotes_online_nightly_price():
     result = pipeline._mock_place_call(build_call_plan(request, candidate, "r1"))
     assert result.availability.quoted_rate == 95.0  # $190 total / 2 nights
     assert "$95 a night" in result.transcript
+
+
+def test_agent_tokens_counted_live_per_call(monkeypatch):
+    import sys
+    import types
+
+    monkeypatch.setattr(config, "MOCK_MODULES", ALL_MOCKED - {"voice"})
+    monkeypatch.setattr(config, "USE_MOCK_HOTEL", False)
+    monkeypatch.setattr(pipeline.tool_server, "start_in_background", lambda port: port)
+    fake_voice = types.SimpleNamespace(
+        place_call=pipeline._mock_place_call,
+        conversation_details=lambda cid: {"id": cid},
+    )
+    monkeypatch.setitem(sys.modules, "voice_agent", fake_voice)
+    monkeypatch.setattr(pipeline, "add_agent_llm_tokens",
+                        lambda conv, usage: usage.__setitem__("agent_llm", usage.get("agent_llm", 0) + 100))
+    events = []
+
+    r = pipeline.run("x", on_event=lambda kind, data: events.append((kind, data)))
+
+    assert r.telemetry.tokens["agent_llm"] == 300
+    live = [d["tokens"]["agent_llm"] for k, d in events if k == "tokens" and "agent_llm" in d["tokens"]]
+    assert [100, 200, 300] == [t for t in live if t][:3]  # grows as each call ends
