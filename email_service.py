@@ -5,8 +5,11 @@ Plain text only. Resend first, Gmail SMTP fallback.
 """
 from __future__ import annotations
 
+import base64
 import logging
+import re
 import smtplib
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from email.message import EmailMessage
 from email.utils import make_msgid
@@ -59,7 +62,36 @@ def audio_url(conversation_id: str) -> str | None:
     return config.ELEVENLABS_CONVERSATION_URL.format(id=conversation_id)
 
 
-def build_payload(run: Run) -> EmailPayload:
+Recording = tuple[str, bytes]  # (filename, MP3 bytes)
+
+
+def _recording_name(rank: int, name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "hotel"
+    return f"call{rank}-{slug}.mp3"
+
+
+def download_recordings(run: Run) -> dict[int, Recording]:
+    """MP3 of every real call, keyed by candidate rank, downloaded in parallel.
+    A failed download is skipped (that hotel's email line falls back to the link)."""
+    names = {c.rank: c.name for c in run.candidates}
+    calls = [c for c in run.calls if audio_url(c.conversation_id)]
+    if not calls:
+        return {}
+    import voice_agent
+
+    def fetch(call: CallResult) -> tuple[int, Recording] | None:
+        try:
+            data = voice_agent.conversation_audio(call.conversation_id)
+        except Exception as exc:
+            log.warning("recording download failed for call %d: %s", call.candidate_rank, exc)
+            return None
+        return call.candidate_rank, (_recording_name(call.candidate_rank, names.get(call.candidate_rank, "")), data)
+
+    with ThreadPoolExecutor(max_workers=len(calls)) as pool:
+        return dict(r for r in pool.map(fetch, calls) if r)
+
+
+def build_payload(run: Run, recordings: dict[int, Recording] | None = None) -> EmailPayload:
     """Join candidates, availability and calls by rank, cheapest first."""
     if run.request is None:
         raise ValueError("run.request is missing")
@@ -84,6 +116,7 @@ def build_payload(run: Run) -> EmailPayload:
                 reservation_number=status.reservation_number if status else None,
                 search_price=cand.total_price,
                 audio_url=audio_url(call.conversation_id) if call else None,
+                audio_file=(recordings or {}).get(cand.rank, (None,))[0],
             )
         )
 
@@ -138,9 +171,16 @@ def stay_price_text(h: HotelSection, n: int) -> str:
     return "not given"
 
 
+def _recording_text(h: HotelSection) -> str:
+    """The attached MP3 if we have it, else the dashboard link, else not available."""
+    if h.audio_file:
+        return f"attached ({h.audio_file})"
+    return h.audio_url or "Not available"
+
+
 def _extras(h: HotelSection) -> str:
-    """Recording link for the one-line summary of other hotels."""
-    return f", recording {h.audio_url}" if h.audio_url else ""
+    """Recording for the one-line summary of other hotels."""
+    return f", recording {_recording_text(h)}" if h.audio_file or h.audio_url else ""
 
 
 def render_body(payload: EmailPayload) -> str:
@@ -169,7 +209,7 @@ def render_body(payload: EmailPayload) -> str:
         f"Phone: {h.phone}",
         f"Reservation Date: {req.check_in.isoformat()} to {req.check_out.isoformat()} ({_plural(n, 'night')})",
         f"Price for Stay: {stay_price_text(h, n)}",
-        f"Call Recording: {h.audio_url or 'Not available'}",
+        f"Call Recording: {_recording_text(h)}",
         f"Availability: {_status_text(h.availability)}",
         "",
         "Transcript:",
@@ -201,7 +241,7 @@ def check_payload(payload: EmailPayload) -> None:
                 raise ValueError(f"hotel {i}: {field} is empty")
 
 
-def _send_resend(to: str, subj: str, body: str) -> str:
+def _send_resend(to: str, subj: str, body: str, files: list[Recording] = ()) -> str:
     key = config.RESEND_API_KEY
     if not key:
         raise RuntimeError("RESEND_API_KEY is not set")
@@ -213,14 +253,16 @@ def _send_resend(to: str, subj: str, body: str) -> str:
             "to": [to],
             "subject": subj,
             "text": body,
+            **({"attachments": [{"filename": name, "content": base64.b64encode(data).decode()}
+                                for name, data in files]} if files else {}),
         },
-        timeout=10,
+        timeout=30 if files else 10,
     )
     resp.raise_for_status()
     return resp.json()["id"]
 
 
-def _send_smtp(to: str, subj: str, body: str) -> str:
+def _send_smtp(to: str, subj: str, body: str, files: list[Recording] = ()) -> str:
     user = config.SMTP_USER
     password = config.SMTP_APP_PASSWORD
     if not (user and password):
@@ -231,7 +273,9 @@ def _send_smtp(to: str, subj: str, body: str) -> str:
     msg["Subject"] = subj
     msg["Message-ID"] = make_msgid()
     msg.set_content(body)
-    with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=15) as s:
+    for name, data in files:
+        msg.add_attachment(data, maintype="audio", subtype="mpeg", filename=name)
+    with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=30 if files else 15) as s:
         s.starttls()
         s.login(user, password)
         s.send_message(msg)
@@ -239,21 +283,25 @@ def _send_smtp(to: str, subj: str, body: str) -> str:
 
 
 def send(run: Run) -> EmailReceipt:
-    """Check format, send one email (Resend, then SMTP on failure), set run.email."""
-    payload = build_payload(run)
+    """Check format, send one email with the call recordings attached (Resend, then SMTP
+    on failure), set run.email."""
+    recordings = download_recordings(run)
+    payload = build_payload(run, recordings)
     check_payload(payload)
     body = render_body(payload)
-    if not payload.hotels[best_index(payload.hotels)].audio_url:
-        log.warning("reported hotel has no call-recording link; the organizers use it as proof")
+    best = payload.hotels[best_index(payload.hotels)]
+    if not (best.audio_file or best.audio_url):
+        log.warning("reported hotel has no call recording; the organizers use it as proof")
+    files = [recordings[rank] for rank in sorted(recordings)]
 
     message_id = None
     if config.EMAIL_PROVIDER == "resend":
         try:
-            message_id = _send_resend(payload.to, payload.subject, body)
+            message_id = _send_resend(payload.to, payload.subject, body, files)
         except Exception as exc:
             log.warning("Resend failed (%s); falling back to SMTP", exc)
     if message_id is None:
-        message_id = _send_smtp(payload.to, payload.subject, body)
+        message_id = _send_smtp(payload.to, payload.subject, body, files)
 
     receipt = EmailReceipt(message_id=message_id, sent_at=datetime.now(timezone.utc))
     run.email = receipt
