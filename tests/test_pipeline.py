@@ -190,3 +190,41 @@ def test_agent_tokens_counted_live_per_call(monkeypatch):
     assert r.telemetry.tokens["agent_llm"] == 300
     live = [d["tokens"]["agent_llm"] for k, d in events if k == "tokens" and "agent_llm" in d["tokens"]]
     assert [100, 200, 300] == [t for t in live if t][:3]  # grows as each call ends
+
+
+def _real_voice(monkeypatch, numbers):
+    import sys
+    import types
+
+    monkeypatch.setattr(config, "MOCK_MODULES", ALL_MOCKED - {"voice"})
+    monkeypatch.setattr(config, "USE_MOCK_HOTEL", True)
+    monkeypatch.setattr(config, "MOCK_HOTEL_PHONES", numbers)
+    monkeypatch.setattr(pipeline.tool_server, "start_in_background", lambda port: port)
+    dialed = []
+
+    def place_call(plan):
+        dialed.append(plan.candidate.phone_e164)
+        return pipeline._mock_place_call(plan)
+
+    monkeypatch.setitem(sys.modules, "voice_agent", types.SimpleNamespace(
+        place_call=place_call, conversation_details=lambda cid: {}))
+    return dialed
+
+
+def test_one_test_number_calls_only_the_cheapest_hotel(monkeypatch):
+    dialed = _real_voice(monkeypatch, ["+16135550000"])
+    events = []
+
+    r = pipeline.run("x", on_event=lambda kind, data: events.append((kind, data)))
+
+    assert dialed == ["+16135550000"]
+    assert [c.rank for c in r.candidates] == [1]  # email and UI only list the hotel we called
+    assert r.candidates[0].phone_e164 == "+14165550101"  # real hotel details kept
+    assert [d["numbers"] for k, d in events if k == "dialing"] == [{1: "+16135550000"}]
+
+
+def test_test_mode_without_numbers_stops_before_calling(monkeypatch):
+    dialed = _real_voice(monkeypatch, [])
+    with pytest.raises(RuntimeError, match="Refusing to dial real hotels"):
+        pipeline.run("x")
+    assert dialed == []

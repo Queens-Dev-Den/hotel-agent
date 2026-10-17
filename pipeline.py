@@ -41,7 +41,8 @@ MOCK_CALL_DELAY_S = 0.0
 
 # Progress callback: on_event(kind, data). Kinds: stage_start {name}, stage_done {name, ms},
 # request {request}, candidates {candidates}, call_start {rank}, call_done {call},
-# tokens {tokens} (running totals, after every stage and every call), done {run}
+# tokens {tokens} (running totals, after every stage and every call),
+# dialing {numbers: {rank: phone actually dialed}}, done {run}
 Emit = Callable[[str, dict], None]
 
 
@@ -129,10 +130,14 @@ def _send():
 
 # --- stages ------------------------------------------------------------------------
 
+def _dials_test_numbers() -> bool:
+    return config.USE_MOCK_HOTEL and not _mocked("voice")
+
+
 def _dial_targets(plans: list[CallPlan]) -> list[CallPlan]:
     """Swap in the mock hotel numbers unless USE_MOCK_HOTEL is off. Only the plan's
     copy changes: run.candidates (and so the email) keep the real hotel's details."""
-    if not config.USE_MOCK_HOTEL or _mocked("voice"):
+    if not _dials_test_numbers():
         return plans
     if len(config.MOCK_HOTEL_PHONES) < len(plans):
         raise RuntimeError(
@@ -238,6 +243,11 @@ def run(prompt: str, *, callback_email: str | None = None, on_event: Emit | None
         r.candidates = _find_candidates()(r.request, stats=search_stats)
     log.info("search dropped: %s", search_stats)
     r.telemetry.tokens["serpapi_searches"] = search_stats.get("serpapi_searches", 0)
+    if _dials_test_numbers():
+        if not config.MOCK_HOTEL_PHONES:
+            raise RuntimeError("Test-number mode is on but no test numbers are set. Refusing to dial real hotels.")
+        # One test phone per call: with fewer numbers, only the cheapest hotels get "called"
+        r.candidates = r.candidates[: len(config.MOCK_HOTEL_PHONES)]
     emit("candidates", {"candidates": r.candidates})
 
     with _stage(r, "recall", emit):
@@ -247,8 +257,10 @@ def run(prompt: str, *, callback_email: str | None = None, on_event: Emit | None
         for c in r.candidates:
             tool_server.register_run(r, c)
 
+    dial_plans = _dial_targets(plans)
+    emit("dialing", {"numbers": {p.candidate.rank: p.candidate.phone_e164 for p in dial_plans}})
     with _stage(r, "call", emit):
-        r.calls = _call_all(_dial_targets(plans), emit, lambda call: _count_agent_tokens(r, call, emit))
+        r.calls = _call_all(dial_plans, emit, lambda call: _count_agent_tokens(r, call, emit))
 
     # tool result -> call's own answer -> transcript regex -> Backboard (WS4)
     tool_server.resolve_availability(r, fallback=fallback_extract, usage=r.telemetry.tokens)

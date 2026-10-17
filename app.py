@@ -14,6 +14,7 @@ import streamlit as st
 
 import config
 import pipeline
+from search_service import to_e164
 
 STAGES = [
     ("brain", "Read prompt"),
@@ -56,6 +57,8 @@ def _apply(state: dict, kind: str, data: dict) -> None:
         state["stages"][data["name"]] = {"status": "running", "started": now}
     elif kind == "stage_done":
         state["stages"][data["name"]] = {"status": "done", "ms": data["ms"]}
+    elif kind == "dialing":
+        state["dialing"] = data["numbers"]
     elif kind in ("request", "candidates", "run", "error", "tokens"):
         state[kind] = data[kind]
     elif kind == "done":
@@ -125,7 +128,9 @@ def _render_calls(state: dict) -> None:
         b.markdown(f"**{c.name}**  \n<small>{c.address}</small>" + (f"  \n{links}" if links else ""),
                    unsafe_allow_html=True)
         c2.markdown(f"${c.total_price:.0f}")
-        d.markdown(f"`{c.phone_e164}`")
+        dialed = (state.get("dialing") or {}).get(c.rank)
+        d.markdown(f"`{c.phone_e164}`" + (f"  \n<small>📲 ringing `{dialed}`</small>" if dialed and dialed != c.phone_e164 else ""),
+                   unsafe_allow_html=True)
         e.markdown(f"{status}  \n<small>{took}</small>", unsafe_allow_html=True)
 
 
@@ -235,17 +240,50 @@ with st.sidebar:
     fake_email = st.checkbox("Fake email (nothing sent)", value=True)
     fake_search = st.checkbox("Fake search (no SerpApi credits)", value="search" in config.MOCK_MODULES)
     pipeline.MOCK_CALL_DELAY_S = st.slider("Fake call length (s)", 0.0, 10.0, 3.0, 0.5)
-    if not fake_calls:
-        if config.USE_MOCK_HOTEL:
-            st.info(f"Calls go to the mock hotel numbers ({len(config.MOCK_HOTEL_PHONES)} set).")
+
+    st.header("Who the agent calls")
+    dial_block = None  # why Go is disabled, if it is
+    if fake_calls:
+        st.caption("Fake calls are on, so nobody is phoned. Turn them off to call a real phone.")
+    else:
+        target = st.radio("Call", ["Our own test number(s)", "The real hotels"], index=0,
+                          help="Test numbers get the real call (same agent, same script), but ring "
+                               "our phones instead of the hotels. The email still shows the real hotels.")
+        if target == "Our own test number(s)":
+            # Kept in a second key so the numbers survive switching to "real hotels" and back
+            ss = st.session_state
+            ss.setdefault("test_numbers_saved", "\n".join(config.MOCK_HOTEL_PHONES))
+            ss["test_numbers"] = ss["test_numbers_saved"]
+            raw = st.text_area("Test numbers, one per line (up to 3)", key="test_numbers",
+                               placeholder="+16135550123\n(613) 555-0199",
+                               on_change=lambda: ss.__setitem__("test_numbers_saved", ss["test_numbers"]))
+            entered = [line.strip() for line in raw.splitlines() if line.strip()]
+            numbers = [to_e164(n) for n in entered]
+            bad = [e for e, n in zip(entered, numbers) if n is None]
+            numbers = list(dict.fromkeys(n for n in numbers if n))[:3]
+            if bad:
+                dial_block = f"Not a valid phone number: {', '.join(bad)}"
+            elif not numbers:
+                dial_block = "Add at least one test number."
+            else:
+                st.success(f"Will call {len(numbers)} hotel(s), ringing: " + ", ".join(f"`{n}`" for n in numbers))
+                if len(numbers) < 3:
+                    st.caption("One number per call, so only the cheapest hotel(s) get called. "
+                               "Add more numbers to run all 3 at once.")
+            config.USE_MOCK_HOTEL, config.MOCK_HOTEL_PHONES = True, numbers
         else:
-            st.warning("USE_MOCK_HOTEL is off: this will phone REAL hotels.")
+            st.warning("This phones the **real hotels** found by the search.")
+            if not st.checkbox("Yes, I'm allowed to call real hotels"):
+                dial_block = "Confirm you're allowed to call real hotels first."
+            config.USE_MOCK_HOTEL, config.MOCK_HOTEL_PHONES = False, []
+        if dial_block:
+            st.error(dial_block)
     config.MOCK_MODULES = {m for m, on in (("voice", fake_calls), ("email", fake_email), ("search", fake_search)) if on}
 
 with st.form("prompt"):
     prompt = st.text_input("What do you need?", placeholder="cheapest hotel in Toronto tonight")
     email = st.text_input("Send the results to", value=config.RECEIPT_TO_EMAIL, placeholder="you@example.com")
-    go = st.form_submit_button("Go", type="primary", use_container_width=True)
+    go = st.form_submit_button("Go", type="primary", use_container_width=True, disabled=dial_block is not None)
 
 verdict_box = st.empty()
 st.subheader("Steps")
