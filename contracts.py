@@ -86,6 +86,7 @@ class HotelSection(BaseModel):
     reservation_number: str | None = None  # optional for the organizers; only if the hotel gives one
     search_price: float | None = None  # total stay from search, used when the call quoted no rate
     audio_url: str | None = None  # ElevenLabs link to the call recording (organizers' proof)
+    audio_file: str | None = None  # filename of the attached MP3 recording, if it was downloaded
 
 
 class EmailPayload(BaseModel):

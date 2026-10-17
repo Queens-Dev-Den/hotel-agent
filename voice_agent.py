@@ -51,6 +51,14 @@ def conversation_details(conversation_id: str) -> dict:
         return _get_conversation(client, conversation_id)
 
 
+def conversation_audio(conversation_id: str) -> bytes:
+    """The call recording as MP3 bytes (~15 KB per second of call)."""
+    with _client() as client:
+        resp = client.get(f"/v1/convai/conversations/{conversation_id}/audio", timeout=30)
+        resp.raise_for_status()
+        return resp.content
+
+
 # --- ElevenLabs requests --------------------------------------------------------
 
 LISTEN_FIRST_LINE = (

@@ -13,6 +13,15 @@ from contracts import (
 )
 
 
+REAL_DOWNLOAD = email_service.download_recordings  # kept before the autouse stub replaces it
+
+
+@pytest.fixture(autouse=True)
+def no_real_downloads(monkeypatch):
+    """Never fetch real recordings from ElevenLabs in tests; tests that want files set them."""
+    monkeypatch.setattr(email_service, "download_recordings", lambda run: {})
+
+
 @pytest.fixture(autouse=True)
 def env(monkeypatch):
     monkeypatch.setattr(config, "TEAM_NO", "15")
@@ -139,7 +148,7 @@ def test_check_rejects_missing_team_no(monkeypatch):
 
 def test_send_uses_resend_and_records_receipt(monkeypatch):
     sent = {}
-    monkeypatch.setattr(email_service, "_send_resend", lambda to, s, b: sent.update(to=to, s=s, b=b) or "rid-1")
+    monkeypatch.setattr(email_service, "_send_resend", lambda to, s, b, files=(): sent.update(to=to, s=s, b=b) or "rid-1")
     run = mixed_run()
     receipt = email_service.send(run)
     assert receipt.message_id == "rid-1" and run.email is receipt
@@ -151,14 +160,14 @@ def test_send_falls_back_to_smtp(monkeypatch):
         raise RuntimeError("resend down")
 
     monkeypatch.setattr(email_service, "_send_resend", boom)
-    monkeypatch.setattr(email_service, "_send_smtp", lambda to, s, b: "<smtp-id>")
+    monkeypatch.setattr(email_service, "_send_smtp", lambda to, s, b, files=(): "<smtp-id>")
     assert email_service.send(mixed_run()).message_id == "<smtp-id>"
 
 
 def test_send_smtp_provider_skips_resend(monkeypatch):
     monkeypatch.setattr(config, "EMAIL_PROVIDER", "smtp")
     monkeypatch.setattr(email_service, "_send_resend", lambda *a: pytest.fail("should not be called"))
-    monkeypatch.setattr(email_service, "_send_smtp", lambda to, s, b: "<smtp-id>")
+    monkeypatch.setattr(email_service, "_send_smtp", lambda to, s, b, files=(): "<smtp-id>")
     assert email_service.send(mixed_run()).message_id == "<smtp-id>"
 
 
@@ -221,3 +230,69 @@ def test_body_ends_with_team_signature():
         "\n--\nTeam 15\nisaacoue4@gmail.com\nrichardguo64@gmail.com\n"
         "zacharygazaille@gmail.com\njordanbouckley@gmail.com\n"
     )
+
+
+# --- call recordings attached as files ---------------------------------------------
+
+def test_recordings_attached_and_named_in_body(monkeypatch):
+    recs = {1: ("call1-alpha.mp3", b"ID3a"), 2: ("call2-beta.mp3", b"ID3b")}
+    monkeypatch.setattr(email_service, "download_recordings", lambda run: recs)
+    sent = {}
+    monkeypatch.setattr(email_service, "_send_resend",
+                        lambda to, s, b, files=(): sent.update(b=b, files=list(files)) or "rid")
+    email_service.send(mixed_run())
+
+    assert sent["files"] == [("call1-alpha.mp3", b"ID3a"), ("call2-beta.mp3", b"ID3b")]
+    assert "Call Recording: attached (call1-alpha.mp3)\n" in sent["b"]
+    assert "2. Beta, +14165550002: Not available, rate not given, recording attached (call2-beta.mp3)" in sent["b"]
+    # no file for Gamma (download failed or none): falls back to the link
+    assert "3. Gamma, +14165550003: Unknown (voicemail / no answer / error), rate not given, recording https://el.test/c/c3" in sent["b"]
+
+
+def test_resend_payload_has_base64_attachments(monkeypatch):
+    monkeypatch.setattr(config, "RESEND_API_KEY", "k")
+    captured = {}
+
+    class Resp:
+        def raise_for_status(self): pass
+        def json(self): return {"id": "rid"}
+
+    monkeypatch.setattr(email_service.httpx, "post", lambda url, headers, json, timeout: captured.update(json) or Resp())
+    email_service._send_resend("me@example.com", "subj", "body", [("call1-alpha.mp3", b"ID3")])
+    assert captured["attachments"] == [{"filename": "call1-alpha.mp3", "content": "SUQz"}]
+
+
+def test_smtp_message_has_audio_attachment(monkeypatch):
+    monkeypatch.setattr(config, "SMTP_USER", "u@example.com")
+    monkeypatch.setattr(config, "SMTP_APP_PASSWORD", "p")
+    sent = []
+
+    class FakeSMTP:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def starttls(self): pass
+        def login(self, *a): pass
+        def send_message(self, msg): sent.append(msg)
+
+    monkeypatch.setattr(email_service.smtplib, "SMTP", FakeSMTP)
+    email_service._send_smtp("me@example.com", "subj", "body", [("call1-alpha.mp3", b"ID3")])
+    parts = [p for p in sent[0].iter_attachments()]
+    assert [(p.get_filename(), p.get_content_type(), p.get_content()) for p in parts] == [
+        ("call1-alpha.mp3", "audio/mpeg", b"ID3")]
+
+
+def test_download_recordings_skips_fake_and_failed(monkeypatch):
+    import sys
+    import types
+
+    run = mixed_run()
+    run.calls[1].conversation_id = "mock-r1-2"  # fake call: no recording
+
+    def audio(cid):
+        if cid == "c3":
+            raise ConnectionError("boom")
+        return b"ID3" + cid.encode()
+
+    monkeypatch.setitem(sys.modules, "voice_agent", types.SimpleNamespace(conversation_audio=audio))
+    assert REAL_DOWNLOAD(run) == {1: ("call1-alpha.mp3", b"ID3c1")}
