@@ -324,12 +324,23 @@ def _usage(inp, out, cache_read=0):
     }}}
 
 
-def test_agent_llm_tokens_from_charging():
+def test_agent_llm_tokens_counts_initiated_only():
+    # initiated_generation already includes irreversible_generation (identical on a call with no interruptions)
     conv = {"metadata": {"charging": {"llm_usage": {
-        "irreversible_generation": _usage(900, 120, cache_read=300),
-        "initiated_generation": _usage(50, 10),
+        "irreversible_generation": _usage(122, 81, cache_read=3584),
+        "initiated_generation": _usage(451, 230, cache_read=7424),
     }}}}
-    assert agent_brain.agent_llm_tokens(conv) == 900 + 120 + 300 + 50 + 10
+    assert agent_brain.agent_llm_tokens(conv) == 451 + 230 + 7424
+
+
+def test_agent_llm_tokens_irreversible_only():
+    conv = {"metadata": {"charging": {"llm_usage": {"irreversible_generation": _usage(100, 10)}}}}
+    assert agent_brain.agent_llm_tokens(conv) == 110
+
+
+def test_agent_llm_usage_breakdown():
+    conv = {"metadata": {"charging": {"llm_usage": {"initiated_generation": _usage(272, 132, cache_read=7552)}}}}
+    assert agent_brain.agent_llm_usage(conv) == {"input": 272, "cache_read": 7552, "cache_write": 0, "output": 132}
 
 
 def test_agent_llm_tokens_falls_back_to_transcript():
@@ -350,3 +361,11 @@ def test_add_agent_llm_tokens_sums_across_calls():
     for conv in ({"transcript": [{"llm_usage": _usage(100, 10)}]}, {"transcript": [{"llm_usage": _usage(200, 20)}]}):
         agent_brain.add_agent_llm_tokens(conv, usage)
     assert usage["agent_llm"] == 330
+    assert usage["agent_llm_cache_read"] == 0
+
+
+def test_add_agent_llm_tokens_records_cache_reads():
+    usage = {}
+    conv = {"metadata": {"charging": {"llm_usage": {"initiated_generation": _usage(272, 132, cache_read=7552)}}}}
+    assert agent_brain.add_agent_llm_tokens(conv, usage) == 7956
+    assert usage == {"agent_llm": 7956, "agent_llm_cache_read": 7552}
