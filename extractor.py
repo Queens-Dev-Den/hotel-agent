@@ -24,7 +24,8 @@ _NEGATIVE = re.compile(
     no\s+(?:rooms?|suites?)\b |
     (?:not|isn['’]?t|aren['’]?t|un)[\s-]*available |
     (?:we['’]?re|we\s+are|completely|totally)\s+(?:completely\s+|totally\s+)?full |
-    (?:can['’]?t|cannot|unable\s+to)\s+(?:see|find)\s+any
+    (?:can['’]?t|cannot|unable\s+to)\s+(?:see|find)\s+any |
+    (?:have|got)\s+nothing(?:\s+(?:is\s+)?(?:available|left))?
     """,
     re.IGNORECASE | re.VERBOSE,
 )
@@ -63,6 +64,12 @@ _NATO["x-ray"] = _NATO["xray"] = "X"
 _VOICEMAIL = re.compile(
     r"leave\s+(?:a|your)\s+message|at\s+the\s+(?:tone|beep)|after\s+the\s+(?:tone|beep)|record\s+your\s+message|"
     r"voice\s*mail|(?:person|party|number)\s+you(?:['’]re|\s+are)\s+(?:trying\s+to\s+reach|calling)",
+    re.IGNORECASE,
+)
+# A quoted price is a yes when it's offered: "the cheapest one I have is $50", "we've got a king for $120",
+# "Yes, $149 a night".
+_OFFER = re.compile(
+    r"\b(?:yes|yeah|yep|sure|cheapest|lowest|best\s+(?:rate|price)|(?:i|we)(?:['’]ve|\s+have)?\s+got|(?:i|we)\s+(?:do\s+)?have|there['’]s\s+(?:one|a))\b",
     re.IGNORECASE,
 )
 _RATE = re.compile(
@@ -156,7 +163,9 @@ def _classify(utterance: str) -> tuple[bool | None, str | None]:
     utterance = _NOISE.sub(" ", utterance)
     has_negative = bool(_NEGATIVE.search(utterance))
     remainder = _NEGATIVE.sub(" ", utterance)
-    has_positive = bool(_POSITIVE.search(remainder))
+    has_positive = bool(_POSITIVE.search(remainder)) or (
+        bool(_OFFER.search(remainder)) and _rate_in(remainder) is not None
+    )
     if has_negative and has_positive:
         return None, "ambiguous"
     if has_negative:
