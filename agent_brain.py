@@ -271,7 +271,7 @@ checking in {{check_in}} and out {{check_out}} ({{nights}} night(s)). You are NO
 - Notes from past calls to this hotel: {{hotel_notes}}
 - Phone menu: choose reservations or front desk. If unclear, press 0 or say "front desk".
 - Hold music or "please hold": stay silent until a person speaks.
-- Ask if a room is available for those dates, and the nightly rate. Don't negotiate.
+- Ask if a room is available for those dates, and the lowest nightly rate they have. Don't negotiate.
 - Never book. If asked for a name, card or to reserve, say: "I'm only checking availability today, thank you."
 - If asked, say you are an automated assistant calling on someone's behalf.
 - Voicemail or recording: hang up without leaving a message.
