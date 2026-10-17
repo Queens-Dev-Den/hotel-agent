@@ -16,7 +16,6 @@ import streamlit as st
 
 import config
 import pipeline
-from search_service import to_e164
 
 STAGES = [
     ("brain", "Read prompt"),
@@ -486,71 +485,16 @@ def _side_section(icon: str, title: str, description: str) -> None:
     _html(f'<div class="side-h">{_icon(icon)} {title}</div><p class="side-d">{description}</p>')
 
 
+# Live only: every run searches the real hotels, phones them and sends a real email.
+config.MOCK_MODULES = set()
+config.USE_MOCK_HOTEL, config.MOCK_HOTEL_PHONES = False, []
+
 with st.sidebar:
-    intro_box = st.empty()  # filled below, once we know which mode the controls are in
-
-    _side_section("flask", "Test mode",
-                  "Fake steps run instantly and cost nothing, so you can rehearse the demo. "
-                  "Untick them to use the real services.")
-    # On by default until voice_agent and email_service are merged and tested
-    fake_calls = st.checkbox("Fake calls (no phone calls)", value=True)
-    fake_email = st.checkbox("Fake email (nothing sent)", value=True)
-    fake_search = st.checkbox("Fake search (no SerpApi credits)", value="search" in config.MOCK_MODULES)
-    pipeline.MOCK_CALL_DELAY_S = st.slider("Fake call length (s)", 0.0, 10.0, 3.0, 0.5)
-
-    _side_section("phonecall", "Who the agent calls",
-                  "With real calls on, the agent can ring your own phone instead of the hotels, so you can "
-                  "play the front desk. The results still show the real hotels.")
-    dial_block = None  # why Go is disabled, if it is
-    target = None
-    if fake_calls:
-        st.caption("Fake calls are on, so nobody is phoned. Untick it to call a real phone.")
-    else:
-        target = st.radio("Call", ["Our own test number(s)", "The real hotels"], index=0,
-                          help="Test numbers get the real call (same agent, same script), but ring "
-                               "our phones instead of the hotels. The email still shows the real hotels.")
-        if target == "Our own test number(s)":
-            # Kept in a second key so the numbers survive switching to "real hotels" and back
-            ss = st.session_state
-            ss.setdefault("test_numbers_saved", "\n".join(config.MOCK_HOTEL_PHONES))
-            ss["test_numbers"] = ss["test_numbers_saved"]
-            raw = st.text_area("Test numbers, one per line (up to 3)", key="test_numbers",
-                               placeholder="+16135550123\n(613) 555-0199",
-                               on_change=lambda: ss.__setitem__("test_numbers_saved", ss["test_numbers"]))
-            entered = [line.strip() for line in raw.splitlines() if line.strip()]
-            numbers = [to_e164(n) for n in entered]
-            bad = [e for e, n in zip(entered, numbers) if n is None]
-            numbers = list(dict.fromkeys(n for n in numbers if n))[:3]
-            if bad:
-                dial_block = f"Not a valid phone number: {', '.join(bad)}"
-            elif not numbers:
-                dial_block = "Add at least one test number."
-            else:
-                st.success(f"Will call {len(numbers)} hotel(s), ringing: " + ", ".join(f"`{n}`" for n in numbers))
-                if len(numbers) < 3:
-                    st.caption("One number per call, so only the cheapest hotel(s) get called. "
-                               "Add more numbers to run all 3 at once.")
-            config.USE_MOCK_HOTEL, config.MOCK_HOTEL_PHONES = True, numbers
-        else:
-            st.warning("This phones the **real hotels** found by the search.")
-            if not st.checkbox("Yes, I'm allowed to call real hotels"):
-                dial_block = "Confirm you're allowed to call real hotels first."
-            config.USE_MOCK_HOTEL, config.MOCK_HOTEL_PHONES = False, []
-        if dial_block:
-            st.error(dial_block)
-    config.MOCK_MODULES = {m for m, on in (("voice", fake_calls), ("email", fake_email), ("search", fake_search)) if on}
-
-    if fake_calls:
-        mode = ("s-available", "check", "Safe: no calls" + (", no email" if fake_email else ", real email"))
-    elif target == "The real hotels":
-        mode = ("s-unavailable", "alert", "Live: calls the real hotels")
-    else:
-        mode = ("s-oncall", "phonecall", "Live: rings your test number(s)")
-    intro_box.markdown(
-        f'<div class="side-intro"><h2>{_icon("settings")} Control panel</h2>'
-        '<p>Choose what this run really does before you press Go. The defaults are safe: '
-        'nothing rings and nothing is sent.</p>'
-        f'<span class="mode {mode[0]}">{_icon(mode[1])} {mode[2]}</span></div>',
+    st.markdown(
+        f'<div class="side-intro"><h2>{_icon("settings")} Live mode</h2>'
+        '<p>Every run searches real hotels, phones them and sends a real email. '
+        'The agent only asks about availability and the nightly rate. It never books.</p>'
+        f'<span class="mode s-unavailable">{_icon("alert")} Live: calls the real hotels</span></div>',
         unsafe_allow_html=True,
     )
 
@@ -558,9 +502,7 @@ with st.form("prompt", border=False):
     c1, c2, c3 = st.columns([5, 3, 1.2], vertical_alignment="bottom")
     prompt = c1.text_input("What do you need?", placeholder="cheapest hotel in Toronto tonight")
     email = c2.text_input("Send the results to", value=config.RECEIPT_TO_EMAIL, placeholder="you@example.com")
-    go = c3.form_submit_button("Go", type="primary", use_container_width=True, disabled=dial_block is not None)
-    if dial_block:
-        st.caption(f"Go is disabled: {dial_block}")
+    go = c3.form_submit_button("Go", type="primary", use_container_width=True)
 
 rail_box = st.empty()
 hero_box = st.empty()
