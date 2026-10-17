@@ -6,9 +6,9 @@ Planning docs only. No code has been written yet. Each teammate owns one workstr
 |---|---|---|
 | [docs/architecture.md](docs/architecture.md) | Lead | System design, data flow, token strategy, corrections to the original plan |
 | [docs/ws1-discovery.md](docs/ws1-discovery.md) | Richard (T1) | SerpApi search, phone resolution, one-shot UI |
-| [docs/ws2-backboard.md](docs/ws2-backboard.md) | Isaac (T2) | Backboard extraction fallback, token telemetry |
+| [docs/ws2-backboard.md](docs/ws2-backboard.md) | Zach (T2) | Backboard extraction fallback, token telemetry |
 | [docs/ws3-voice.md](docs/ws3-voice.md) | Jordan (T3) | ElevenLabs agent, outbound call, IVR/hold/voicemail, failover |
-| [docs/ws4-email.md](docs/ws4-email.md) | Zach (T4) | Resend email, confirmation extraction, deck |
+| [docs/ws4-email.md](docs/ws4-email.md) | Isaac (T4) | Resend email, confirmation extraction, deck |
 | [docs/integration-and-demo.md](docs/integration-and-demo.md) | Everyone | Phase timeline, integration order, test matrix, demo runbook |
 
 ## Target repo layout (to be built)
