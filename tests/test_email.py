@@ -19,7 +19,7 @@ REAL_DOWNLOAD = email_service.download_recordings  # kept before the autouse stu
 @pytest.fixture(autouse=True)
 def no_real_downloads(monkeypatch):
     """Never fetch real recordings from ElevenLabs in tests; tests that want files set them."""
-    monkeypatch.setattr(email_service, "download_recordings", lambda run: {})
+    monkeypatch.setattr(email_service, "download_recordings", lambda run, ranks=None: {})
 
 
 @pytest.fixture(autouse=True)
@@ -81,8 +81,8 @@ def test_body_mixed_outcomes():
     ) in body
     assert "Hotel: Yes, $189 a night." in body
     assert "=== Other hotels we called ===" in body
-    assert "2. Beta, +14165550002: Not available, rate not given, recording https://el.test/c/c2" in body
-    assert "3. Gamma, +14165550003: Unknown (voicemail / no answer / error), rate not given, recording https://el.test/c/c3" in body
+    assert "2. Beta, +14165550002: Not available, rate not given" in body
+    assert "3. Gamma, +14165550003: Unknown (voicemail / no answer / error), rate not given" in body
 
 
 def test_only_highlighted_transcript_included():
@@ -185,7 +185,7 @@ def test_reservation_number_not_in_email():
     body = email_service.render_body(email_service.build_payload(run))
     assert "Reservation #" not in body and "reservation #" not in body
     assert "HX4729" not in body and "ZZ1" not in body
-    assert "2. Beta, +14165550002: Not available, rate not given, recording https://el.test/c/c2" in body
+    assert "2. Beta, +14165550002: Not available, rate not given" in body
 
 
 def test_stay_price_falls_back_to_search_total():
@@ -234,19 +234,34 @@ def test_body_ends_with_team_signature():
 
 # --- call recordings attached as files ---------------------------------------------
 
-def test_recordings_attached_and_named_in_body(monkeypatch):
-    recs = {1: ("call1-alpha.mp3", b"ID3a"), 2: ("call2-beta.mp3", b"ID3b")}
-    monkeypatch.setattr(email_service, "download_recordings", lambda run: recs)
+def test_only_the_winning_hotels_recording_is_attached(monkeypatch):
+    asked = []
+
+    def download(run, ranks=None):
+        asked.append(ranks)
+        return {1: ("call1-alpha.mp3", b"ID3a")}
+
+    monkeypatch.setattr(email_service, "download_recordings", download)
     sent = {}
     monkeypatch.setattr(email_service, "_send_resend",
                         lambda to, s, b, files=(): sent.update(b=b, files=list(files)) or "rid")
     email_service.send(mixed_run())
 
-    assert sent["files"] == [("call1-alpha.mp3", b"ID3a"), ("call2-beta.mp3", b"ID3b")]
+    assert asked == [{1}]  # Alpha (rank 1) is the cheapest available hotel
+    assert sent["files"] == [("call1-alpha.mp3", b"ID3a")]
     assert "Call Recording: attached (call1-alpha.mp3)\n" in sent["b"]
-    assert "2. Beta, +14165550002: Not available, rate not given, recording attached (call2-beta.mp3)" in sent["b"]
-    # no file for Gamma (download failed or none): falls back to the link
-    assert "3. Gamma, +14165550003: Unknown (voicemail / no answer / error), rate not given, recording https://el.test/c/c3" in sent["b"]
+    assert "recording" not in sent["b"].split("=== Other hotels we called ===")[1]
+
+
+def test_winner_recording_follows_the_highlighted_hotel(monkeypatch):
+    run = mixed_run()
+    run.availability[0] = Availability(candidate_rank=1, available=False, source="tool")
+    run.availability[1] = Availability(candidate_rank=2, available=True, quoted_rate=120.0, source="tool")
+    asked = []
+    monkeypatch.setattr(email_service, "download_recordings", lambda run, ranks=None: asked.append(ranks) or {})
+    monkeypatch.setattr(email_service, "_send_resend", lambda to, s, b, files=(): "rid")
+    email_service.send(run)
+    assert asked == [{2}]
 
 
 def test_resend_payload_has_base64_attachments(monkeypatch):
@@ -282,7 +297,7 @@ def test_smtp_message_has_audio_attachment(monkeypatch):
         ("call1-alpha.mp3", "audio/mpeg", b"ID3")]
 
 
-def test_download_recordings_skips_fake_and_failed(monkeypatch):
+def test_download_recordings_skips_fake_failed_and_unrequested(monkeypatch):
     import sys
     import types
 
@@ -296,3 +311,5 @@ def test_download_recordings_skips_fake_and_failed(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "voice_agent", types.SimpleNamespace(conversation_audio=audio))
     assert REAL_DOWNLOAD(run) == {1: ("call1-alpha.mp3", b"ID3c1")}
+    assert REAL_DOWNLOAD(run, {3}) == {}  # requested, but the download failed
+    assert REAL_DOWNLOAD(run, {2}) == {}  # fake call

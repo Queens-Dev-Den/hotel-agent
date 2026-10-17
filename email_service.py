@@ -70,11 +70,11 @@ def _recording_name(rank: int, name: str) -> str:
     return f"call{rank}-{slug}.mp3"
 
 
-def download_recordings(run: Run) -> dict[int, Recording]:
-    """MP3 of every real call, keyed by candidate rank, downloaded in parallel.
-    A failed download is skipped (that hotel's email line falls back to the link)."""
+def download_recordings(run: Run, ranks: set[int] | None = None) -> dict[int, Recording]:
+    """MP3 of each real call (only `ranks` if given), keyed by candidate rank, downloaded in
+    parallel. A failed download is skipped (the email falls back to the link)."""
     names = {c.rank: c.name for c in run.candidates}
-    calls = [c for c in run.calls if audio_url(c.conversation_id)]
+    calls = [c for c in run.calls if audio_url(c.conversation_id) and (ranks is None or c.candidate_rank in ranks)]
     if not calls:
         return {}
     import voice_agent
@@ -178,11 +178,6 @@ def _recording_text(h: HotelSection) -> str:
     return h.audio_url or "Not available"
 
 
-def _extras(h: HotelSection) -> str:
-    """Recording for the one-line summary of other hotels."""
-    return f", recording {_recording_text(h)}" if h.audio_file or h.audio_url else ""
-
-
 def render_body(payload: EmailPayload) -> str:
     """Dates, then the cheapest available hotel in full with its transcript, then a
     one-line summary of every other hotel we called."""
@@ -219,8 +214,7 @@ def render_body(payload: EmailPayload) -> str:
     if others:
         lines += ["", "=== Other hotels we called ==="]
         for i, o in others:
-            lines.append(f"{i + 1}. {o.name}, {o.phone}: {_status_text(o.availability)}, "
-                         f"rate {_rate_text(o)}{_extras(o)}")
+            lines.append(f"{i + 1}. {o.name}, {o.phone}: {_status_text(o.availability)}, rate {_rate_text(o)}")
     lines += _signature()
     return "\n".join(lines) + "\n"
 
@@ -283,9 +277,11 @@ def _send_smtp(to: str, subj: str, body: str, files: list[Recording] = ()) -> st
 
 
 def send(run: Run) -> EmailReceipt:
-    """Check format, send one email with the call recordings attached (Resend, then SMTP
-    on failure), set run.email."""
-    recordings = download_recordings(run)
+    """Check format, send one email with the winning hotel's call recording attached
+    (Resend, then SMTP on failure), set run.email."""
+    ranks = sorted(c.rank for c in run.candidates)  # build_payload's hotel order
+    winner = ranks[best_index(build_payload(run).hotels)] if ranks else None
+    recordings = download_recordings(run, {winner}) if winner is not None else {}
     payload = build_payload(run, recordings)
     check_payload(payload)
     body = render_body(payload)
