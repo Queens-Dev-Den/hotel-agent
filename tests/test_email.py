@@ -201,3 +201,15 @@ def test_no_recording_link_for_fake_or_missing_calls():
     assert email_service.audio_url("") is None
     run.calls = []
     assert email_service.build_payload(run).hotels[0].audio_url is None
+
+
+def test_recipient_from_request_beats_env(monkeypatch):
+    monkeypatch.setattr(config, "RECEIPT_TO_EMAIL", "env@example.com")
+    run = mixed_run()
+    run.request.callback_email = "typed@example.com"
+    assert email_service.build_payload(run).to == "typed@example.com"
+
+
+def test_recipient_falls_back_to_env(monkeypatch):
+    monkeypatch.setattr(config, "RECEIPT_TO_EMAIL", "env@example.com")
+    assert email_service.build_payload(mixed_run()).to == "env@example.com"
