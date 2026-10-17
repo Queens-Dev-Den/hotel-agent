@@ -237,7 +237,7 @@ def test_radius_drops_far_and_coordless_listings(fake_api, monkeypatch):
 
 
 def test_radius_lookup_failure_keeps_listings(fake_api):
-    fake_api["places"] = []
+    fake_api["places"] = None  # the lookup failed (network), which is not the same as "no such city"
     fake_api["hotels"] = [prop("H1", nightly=100, gps={"latitude": 44.33, "longitude": -76.16})]
     fake_api["details"]["H1"] = {"phone": "416-555-0100", "address": "1 King St"}
     stats = {}

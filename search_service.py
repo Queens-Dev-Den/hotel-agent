@@ -17,6 +17,7 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from difflib import get_close_matches
 from statistics import median
 from pathlib import Path
 
@@ -38,6 +39,23 @@ NOMINATIM_UA = "hotel-agent-hackathon/1.0 (github.com/Queens-Dev-Den/hotel-agent
 # A city that OSM only knows as a point (no boundary) is treated as this wide around the point
 POINT_CITY_RADIUS_KM = 3.0
 _city_cache: dict[str, list[dict]] = {}
+# Close-match targets for a misspelled city ("Calgalary" -> Calgary). Only used when OSM finds
+# no settlement by the typed name, so a real small town is never "corrected".
+KNOWN_CITIES = (
+    "Toronto", "Montreal", "Vancouver", "Calgary", "Edmonton", "Ottawa", "Winnipeg", "Quebec City",
+    "Hamilton", "Kitchener", "London", "Victoria", "Halifax", "Oshawa", "Windsor", "Saskatoon",
+    "St. Catharines", "Regina", "St. John's", "Kelowna", "Barrie", "Sherbrooke", "Guelph", "Kanata",
+    "Abbotsford", "Trois-Rivieres", "Kingston", "Milton", "Moncton", "White Rock", "Nanaimo",
+    "Brantford", "Chicoutimi", "Saint-Jerome", "Red Deer", "Thunder Bay", "Lethbridge", "Kamloops",
+    "Sudbury", "Saint John", "Peterborough", "Chilliwack", "Belleville", "Fredericton", "Sarnia",
+    "Prince George", "Sault Ste. Marie", "Charlottetown", "Niagara Falls", "Mississauga", "Brampton",
+    "Markham", "Vaughan", "Richmond Hill", "Oakville", "Burlington", "Surrey", "Burnaby", "Richmond",
+    "Laval", "Longueuil", "Gatineau", "Waterloo", "Cambridge", "Whitby", "Ajax", "Pickering",
+    "North Bay", "Timmins", "Cornwall", "Brockville", "Gananoque", "Collingwood", "Banff", "Canmore",
+    "Jasper", "Whistler", "Squamish", "Penticton", "Vernon", "Yellowknife", "Whitehorse", "Iqaluit",
+    "New York", "Boston", "Chicago", "Seattle", "Detroit", "Buffalo", "Los Angeles", "San Francisco",
+    "Miami", "Orlando", "Las Vegas", "Washington", "Philadelphia",
+)
 TOLL_FREE_PREFIXES = ("800", "833", "844", "855", "866", "877", "888")
 _stats_lock = threading.Lock()
 
@@ -137,8 +155,11 @@ def _radius_km() -> float:
     return config.SEARCH_RADIUS_KM
 
 
-def _city_places(city: str) -> list[dict]:
-    """Up to 5 OSM settlements named `city`, with boundary polygons. [] on any error."""
+def _city_places(city: str) -> list[dict] | None:
+    """Up to 5 OSM settlements named `city`, with boundary polygons.
+
+    [] means OSM has no settlement by that name (likely a typo); None means the lookup
+    itself failed (network, rate limit), which is not cached."""
     key = city.strip().lower()
     if key in _city_cache:
         return _city_cache[key]
@@ -151,7 +172,7 @@ def _city_places(city: str) -> list[dict]:
         places = resp.json()
     except Exception as exc:
         log.warning("city boundary lookup failed for %r: %s", city, type(exc).__name__)
-        return []
+        return None
     _city_cache[key] = places
     return places
 
@@ -199,7 +220,18 @@ def _coords(prop: dict) -> tuple[float, float] | None:
     return (float(lat), float(lon)) if isinstance(lat, (int, float)) and isinstance(lon, (int, float)) else None
 
 
-def pick_city(places: list[dict], props: list[dict]) -> dict | None:
+class UnknownCityError(RuntimeError):
+    """The typed city doesn't exist and has no close match. Never search 'anywhere' instead."""
+
+
+def suggest_city(city: str) -> str | None:
+    """The known city closest to a misspelling ("Calgalary" -> "Calgary"), or None. 0 tokens."""
+    by_lower = {c.lower(): c for c in KNOWN_CITIES}
+    match = get_close_matches(city.strip().lower(), list(by_lower), n=1, cutoff=0.75)
+    return by_lower[match[0]] if match else None
+
+
+def pick_city(places: list[dict] | None, props: list[dict]) -> dict | None:
     """The OSM place the listings are actually around ("Kingston" is Jamaica first in OSM).
     Prefers a real boundary over a point when both fit."""
     points = [c for c in map(_coords, props) if c]
@@ -297,7 +329,20 @@ def find_candidates(request: HotelRequest, *, stats: dict[str, int] | None = Non
     with ThreadPoolExecutor(max_workers=config.SEARCH_TOP_N + config.RENTAL_FANOUT) as pool:
         places = pool.submit(_city_places, request.city)  # in parallel with the searches
         results = list(pool.map(lambda r: _search(request, r, stats), kinds))
-        place = pick_city(places.result(), [p for props in results for p in props])
+        found = places.result()
+        if found == []:
+            # No such city in OSM, usually a typo. Google then returns the cheapest listings
+            # anywhere in the country, so never use those: correct the name or stop.
+            typed = request.city
+            fixed = suggest_city(typed)
+            found = _city_places(fixed) if fixed else None
+            if not found:
+                raise UnknownCityError(f"Couldn't find a city called {typed!r}. Check the spelling and try again.")
+            log.info("city %r not found; searching %r instead", typed, fixed)
+            stats["city_corrected"] = 1
+            request.city = fixed  # the call plans, UI and email use the corrected name
+            results = list(pool.map(lambda r: _search(request, r, stats), kinds))
+        place = pick_city(found, [p for props in results for p in props])
         results = [_within_radius(props, place, stats) for props in results]
 
         # Rentals get their own small budget: they are usually the cheapest but
