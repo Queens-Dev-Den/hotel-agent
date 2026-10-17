@@ -23,7 +23,7 @@ def fake_api(monkeypatch):
     """Route _serpapi to in-memory search and details responses."""
     state = {"hotels": [], "rentals": [], "details": {}, "fail": set()}
 
-    def fake(params):
+    def fake(params, stats=None):
         if "property_token" in params:
             token = params["property_token"]
             if token in state["fail"]:
@@ -127,10 +127,10 @@ def test_cheap_phoneless_rentals_dont_crowd_out_hotels(fake_api):
 def test_one_search_failing_still_returns(fake_api, monkeypatch):
     real = search_service._serpapi
 
-    def flaky(params):
+    def flaky(params, stats=None):
         if params.get("vacation_rentals"):
             raise TimeoutError
-        return real(params)
+        return real(params, stats)
 
     monkeypatch.setattr(search_service, "_serpapi", flaky)
     fake_api["hotels"] = [prop("H1", nightly=100)]
@@ -143,3 +143,42 @@ def test_nothing_callable_raises(fake_api):
     fake_api["hotels"] = [prop("H1", nightly=100)]
     with pytest.raises(RuntimeError, match="Toronto"):
         find_candidates(REQ)
+
+
+def test_best_offer_picks_cheapest_site_ties_go_official():
+    detail = {"prices": [
+        {"source": "Agoda", "link": "https://a", "total_rate": {"extracted_lowest": 84}},
+        {"source": "Booking.com", "link": "https://b", "total_rate": {"extracted_lowest": 77}},
+        {"source": "The Hotel", "link": "https://h", "official": True, "total_rate": {"extracted_lowest": 77}},
+        {"source": "NoLink", "total_rate": {"extracted_lowest": 10}},
+    ]}
+    assert search_service.best_offer(detail) == ("https://h", "The Hotel")
+    assert search_service.best_offer({}) == (None, None)
+
+
+def test_candidate_carries_booking_link_and_website(fake_api):
+    fake_api["hotels"] = [prop("H1", nightly=100)]
+    fake_api["details"]["H1"] = {
+        "phone": "416-555-0100", "address": "1 King St", "link": "https://h1.example",
+        "prices": [{"source": "Booking.com", "link": "https://book/h1", "total_rate": {"extracted_lowest": 190}}],
+    }
+
+    [c] = find_candidates(REQ)
+
+    assert (c.booking_url, c.booking_source, c.website) == ("https://book/h1", "Booking.com", "https://h1.example")
+
+
+def test_serpapi_searches_counted_but_not_cache_hits(monkeypatch, tmp_path):
+    monkeypatch.setattr(search_service, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(search_service.config, "SEARCH_CACHE", True)
+
+    class Resp:
+        status_code = 200
+        def raise_for_status(self): pass
+        def json(self): return {"properties": []}
+
+    monkeypatch.setattr(search_service.httpx, "get", lambda *a, **k: Resp())
+    stats = {}
+    search_service._serpapi({"q": "x"}, stats)
+    search_service._serpapi({"q": "x"}, stats)  # replayed from .cache/
+    assert stats == {"serpapi_searches": 1}
