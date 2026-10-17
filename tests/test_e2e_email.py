@@ -24,7 +24,7 @@ def server(monkeypatch):
 
 
 def test_three_parallel_tool_calls_then_one_email(server, monkeypatch):
-    monkeypatch.setattr(email_service, "download_recordings", lambda run: {})  # no real ElevenLabs fetch
+    monkeypatch.setattr(email_service, "download_recordings", lambda run, ranks=None: {})  # no real ElevenLabs fetch
     sent = []
     monkeypatch.setattr(email_service, "_send_resend", lambda to, s, b, files=(): sent.append((to, s, b)) or "mid-1")
     run = make_run({1: "Agent: Hi\nHotel: Yes, $189.", 2: SOLD, 3: None})
