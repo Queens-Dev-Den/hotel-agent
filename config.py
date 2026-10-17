@@ -68,3 +68,5 @@ BACKBOARD_BASE_URL = (os.getenv("BACKBOARD_BASE_URL", "").strip() or "https://ap
 BACKBOARD_MODEL = os.getenv("BACKBOARD_MODEL", "").strip() or "google/gemini-2.5-flash-lite"
 # Hard cap per session (see docs/architecture.md token strategy)
 BACKBOARD_TOKEN_BUDGET = _int("BACKBOARD_TOKEN_BUDGET", 1200)
+# Assistant that stores per-hotel call memories; created on first run if empty
+BACKBOARD_ASSISTANT_ID = os.getenv("BACKBOARD_ASSISTANT_ID", "").strip()

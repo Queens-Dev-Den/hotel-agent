@@ -18,7 +18,7 @@ from datetime import date, timedelta
 import httpx
 
 import config
-from contracts import Availability, CallPlan, HotelCandidate, HotelRequest
+from contracts import Availability, CallPlan, CallResult, HotelCandidate, HotelRequest, Run
 
 PARSE_MAX_TOKENS = 150
 EXTRACT_MAX_TOKENS = 300
@@ -108,6 +108,20 @@ def estimate_tokens(text: str) -> int:
 
 # --- Backboard -----------------------------------------------------------------
 
+def _backboard_post(path: str, payload: dict, timeout: float = 15) -> dict:
+    """POST to Backboard -> JSON body. NotImplementedError if no key, httpx.HTTPError on failure."""
+    if not config.BACKBOARD_API_KEY:
+        raise NotImplementedError("BACKBOARD_API_KEY not set")
+    resp = httpx.post(
+        f"{config.BACKBOARD_BASE_URL}{path}",
+        headers={"X-API-Key": config.BACKBOARD_API_KEY},
+        json=payload,
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
 def _backboard_complete(
     system: str, user: str, max_tokens: int, model: str | None = None
 ) -> tuple[str, int, int]:
@@ -117,14 +131,10 @@ def _backboard_complete(
     Backboard has no output-token cap param; prompts ask for short JSON instead.
     `model` ("<provider>/<model>") overrides config.BACKBOARD_MODEL.
     """
-    if not config.BACKBOARD_API_KEY:
-        raise NotImplementedError("BACKBOARD_API_KEY not set")
     provider, _, model = (model or config.BACKBOARD_MODEL).partition("/")
-
-    resp = httpx.post(
-        f"{config.BACKBOARD_BASE_URL}/threads/messages",
-        headers={"X-API-Key": config.BACKBOARD_API_KEY},
-        json={
+    body = _backboard_post(
+        "/threads/messages",
+        {
             "content": user,
             "system_prompt": system,
             "llm_provider": provider,
@@ -133,10 +143,7 @@ def _backboard_complete(
             "memory": "off",
             "stream": False,
         },
-        timeout=15,
     )
-    resp.raise_for_status()
-    body = resp.json()
     # Billing/model errors come back as HTTP 200 with status FAILED and the reason in content
     if body.get("status") == "FAILED":
         raise httpx.HTTPError(f"Backboard run failed: {body.get('content')}")
@@ -257,6 +264,7 @@ def parse_prompt(
 SYSTEM_PROMPT = """\
 You are calling {{hotel_name}} to check room availability for {{guests}} guest(s), \
 checking in {{check_in}} and out {{check_out}} ({{nights}} night(s)). You are NOT booking.
+- Notes from past calls to this hotel: {{hotel_notes}}
 - Phone menu: choose reservations or front desk. If unclear, press 0 or say "front desk".
 - Hold music or "please hold": stay silent until a person speaks.
 - Ask if a room is available for those dates, and the nightly rate. Don't negotiate.
@@ -275,8 +283,13 @@ def _spoken_date(d: date) -> str:
     return f"{d:%A}, {d:%B} {d.day}"
 
 
-def build_call_plan(request: HotelRequest, candidate: HotelCandidate, run_id: str) -> CallPlan:
-    """Template fill, 0 tokens. Called once per candidate (3 per run)."""
+def build_call_plan(
+    request: HotelRequest, candidate: HotelCandidate, run_id: str, hotel_notes: str = ""
+) -> CallPlan:
+    """Template fill, 0 tokens. Called once per candidate (3 per run).
+
+    `hotel_notes` comes from recall_hotel_notes(); pass "" when there is none.
+    """
     nights = (request.check_out - request.check_in).days
     return CallPlan(
         run_id=run_id,
@@ -291,6 +304,7 @@ def build_call_plan(request: HotelRequest, candidate: HotelCandidate, run_id: st
             "check_out": _spoken_date(request.check_out),
             "nights": str(nights),
             "guests": str(request.guests),
+            "hotel_notes": hotel_notes or "none",
         },
         prompt_tokens=estimate_tokens(SYSTEM_PROMPT),
     )
@@ -330,6 +344,104 @@ def fallback_extract(
         notes=str(raw.get("notes") or "")[:200],
         source="backboard",
     )
+
+
+# --- Memory: learn across runs -------------------------------------------------
+# One Backboard assistant holds a memory per hotel call. Memories are written
+# by us (0 LLM tokens) and read back before the next call as {{hotel_notes}}.
+
+MEMORY_ASSISTANT_NAME = "hotel-agent-memory"
+HOTEL_NOTES_MAX_CHARS = 160  # keeps the agent prompt within budget
+_KEY = rf"(?P<key>\d|{'|'.join(NUMBER_WORDS)})"
+_DEST = r"(?P<dest>reservations?|front desk|booking)"
+# "press 1 for reservations" or "for reservations, press 1"
+IVR_PRESS_RES = [
+    re.compile(rf"\bpress\s+{_KEY}\b[^.]*?\b{_DEST}", re.I),
+    re.compile(rf"\b{_DEST}\b[^.]*?\bpress\s+{_KEY}\b", re.I),
+]
+
+_assistant_id: str | None = None
+
+
+def memory_assistant_id() -> str | None:
+    """config.BACKBOARD_ASSISTANT_ID, or create the assistant once and print its id for .env."""
+    global _assistant_id
+    if _assistant_id is None:
+        _assistant_id = config.BACKBOARD_ASSISTANT_ID or None
+    if _assistant_id is None:
+        try:
+            body = _backboard_post("/assistants", {"name": MEMORY_ASSISTANT_NAME})
+        except (NotImplementedError, httpx.HTTPError):
+            return None
+        _assistant_id = body.get("assistant_id")
+        print(f"Created Backboard memory assistant. Add to .env: BACKBOARD_ASSISTANT_ID={_assistant_id}")
+    return _assistant_id
+
+
+def _hotel_lines(transcript: str) -> str:
+    return "\n".join(line for line in transcript.splitlines() if not line.startswith("Agent:"))
+
+
+def summarize_call(candidate: HotelCandidate, call: CallResult, on: date) -> str:
+    """One-line, deterministic memory for a call. Starts with the phone number so recall can match it."""
+    parts = [f"{call.outcome.replace('_', ' ')}"]
+    a = call.availability
+    if a and a.quoted_rate is not None:
+        parts.append(f"quoted ${a.quoted_rate:g}/night")
+    hotel_said = _hotel_lines(call.transcript or "")
+    ivr = min((m for rx in IVR_PRESS_RES if (m := rx.search(hotel_said))), key=lambda m: m.start(), default=None)
+    if ivr:
+        parts.append(f"menu: press {_to_int(ivr['key'])} for {ivr['dest'].lower()}")
+    if re.search(r"\b(?:please hold|on hold|hold on|hold please)\b", hotel_said, re.I):
+        parts.append("put on hold")
+    parts.append(f"call {call.duration_s:.0f}s")
+    return f"[{candidate.phone_e164}] {candidate.name}, {on.isoformat()}: " + "; ".join(parts)
+
+
+def remember_run(run: Run) -> int:
+    """Store one memory per call in the run. Returns how many were saved; never raises."""
+    assistant_id = memory_assistant_id()
+    if not assistant_id:
+        return 0
+    by_rank = {c.rank: c for c in run.candidates}
+    saved = 0
+    for call in run.calls:
+        candidate = by_rank.get(call.candidate_rank)
+        if candidate is None:
+            continue
+        try:
+            _backboard_post(
+                f"/assistants/{assistant_id}/memories",
+                {
+                    "content": summarize_call(candidate, call, run.started_at.date()),
+                    "metadata": {"phone": candidate.phone_e164, "run_id": run.run_id, "outcome": call.outcome},
+                },
+            )
+            saved += 1
+        except (NotImplementedError, httpx.HTTPError):
+            continue
+    return saved
+
+
+def recall_hotel_notes(candidate: HotelCandidate, limit: int = 2) -> str:
+    """Past-call notes for this hotel, newest first, for {{hotel_notes}}. "" if none or on any error."""
+    assistant_id = memory_assistant_id()
+    if not assistant_id:
+        return ""
+    try:
+        body = _backboard_post(
+            f"/assistants/{assistant_id}/memories/search",
+            {"query": f"{candidate.phone_e164} {candidate.name}", "limit": 10},
+            timeout=3,
+        )
+    except (NotImplementedError, httpx.HTTPError):
+        return ""
+    # Search is semantic, so keep only memories for this exact phone number
+    tag = f"[{candidate.phone_e164}]"
+    hits = [m for m in body.get("memories", []) if m.get("content", "").startswith(tag)]
+    hits.sort(key=lambda m: m.get("created_at") or "", reverse=True)
+    notes = " | ".join(m["content"].split(": ", 1)[-1] for m in hits[:limit])
+    return notes[:HOTEL_NOTES_MAX_CHARS]
 
 
 # --- Phase 0 latency check -----------------------------------------------------
