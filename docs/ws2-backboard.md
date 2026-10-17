@@ -77,7 +77,7 @@ Measured 2026-10-17 unless marked *pending*. Run `python token_report.py` after 
 | Call plans ×3 | No (template fill) | **0** | System prompt ≈ 234 tokens (budget 300), 7 dynamic vars + `hotel_notes` |
 | Live calls ×3 | ElevenLabs agent LLM | *pending* (`agent_llm`) | Needs real calls |
 | Availability extraction | Tool call first, then regex, then Backboard | **0** when the tool fires; ~200 per call on the Backboard fallback | Live: sample transcript → "available, $179", 197 tokens |
-| Remember the run | No (our code writes the summary) | **0** | ~1.2 s, after the email so it never delays the result |
+| Remember the run | No (our code writes the summary) | **0** | ~1.2 s per hotel, after the email so it never delays the result |
 | **Backboard total** | | **0 on the happy path**; worst case ≈ 160 + 3 × 200 = 760 | Budget 1,200 |
 
 The pitch line: **Backboard costs 0 tokens on the happy path.** Every deterministic step (parsing, sorting, the prompt, validation, the memory summary) is plain code. The LLM is only a fallback.
