@@ -59,14 +59,21 @@ LISTEN_FIRST_LINE = (
 )
 
 
-# From live tests: brand names read as "wrong number", half sentences and misheard
-# greetings ("hi" -> "bye") made the agent ask to repeat or hang up early.
+# From live tests with real hotels: receptionists hang up on stiff AI-sounding callers,
+# "one moment" got an "Are you still there?" after 10 s, brand names read as "wrong
+# number", half sentences and misheard greetings ("hi" -> "bye") made the agent ask to
+# repeat or hang up, and a PBX "enter your access code" got a spoken explanation.
 CALL_RULES = (
+    "\n- Sound like a relaxed, friendly person: short casual sentences with contractions. Never write bracketed tags like [slow]."
+    '\n- If they say "one moment", "let me check" or put you on hold, stay silent until they speak again, however long it takes. '
+    'Never ask "are you still there?" while they are checking.'
     "\n- If they answer with a different or brand name, or a central reservations line, carry on: ask about {{hotel_name}}."
-    "\n- If speech is cut off, noisy or unclear, stay silent and let them continue. Ask them to repeat only once, "
-    "after they've clearly stopped. If a menu is unclear, press 0."
-    '\n- Only end the call early if they clearly refuse to help or hang up; a single "bye" at the very start '
-    "is probably misheard, so ask your question once."
+    "\n- If speech is cut off or unclear, let them finish. Ask them to repeat at most once. If a menu is unclear, press 0."
+    "\n- If a system asks for a code, extension or PIN, press 0; if nothing changes, end the call."
+    '\n- If asked if you are a robot or AI, answer honestly in one friendly line: "Yes, I\'m an automated assistant '
+    "checking prices for a traveller, it's just one quick question.\" Then ask again."
+    "\n- If they don't want to talk to an AI, thank them and end the call politely."
+    '\n- A single "bye" at the very start is probably misheard, so ask your question once.'
 )
 
 

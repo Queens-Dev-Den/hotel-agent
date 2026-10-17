@@ -70,7 +70,9 @@ def test_call_rules_always_sent(fake_api):
     fake_api["gets"] = [_conversation(turns=HOTEL_YES)]
     voice_agent.place_call(PLAN)
     prompt = fake_api["posts"][0]["conversation_initiation_client_data"]["conversation_config_override"]["agent"]["prompt"]["prompt"]
-    assert "different or brand name" in prompt and "cut off, noisy or unclear" in prompt
+    for rule in ("different or brand name", "cut off or unclear", "Never write bracketed tags",
+                 "Never ask \"are you still there?\"", "answer honestly", "press 0"):
+        assert rule in prompt, rule
 
 
 def test_listen_first_moves_opener_into_prompt(fake_api, monkeypatch):
