@@ -1,5 +1,6 @@
 from datetime import date
 
+import httpx
 import pytest
 
 import agent_brain
@@ -84,6 +85,12 @@ def test_no_city_uses_backboard(monkeypatch):
     assert usage == {"backboard_in": 60, "backboard_out": 25, "agent_llm": 0}
 
 
+@pytest.mark.parametrize("prompt", ["a hotel in the capital of Canada", "somewhere in a big city near the lake"])
+def test_vague_city_goes_to_backboard(prompt):
+    with pytest.raises(ValueError):  # no Backboard in tests, so the fallback can't resolve it
+        parse(prompt)
+
+
 def test_regex_path_spends_no_tokens(monkeypatch):
     def boom(*a, **k):
         raise AssertionError("Backboard should not be called")
@@ -154,12 +161,25 @@ def test_fallback_extract_unknown(monkeypatch):
     assert fallback_extract(TRANSCRIPT, 3).available is None
 
 
-def test_fallback_extract_unwired_returns_none():
+def test_fallback_extract_without_key_returns_none(monkeypatch):
+    monkeypatch.delenv("BACKBOARD_API_KEY", raising=False)
     assert fallback_extract(TRANSCRIPT, 1) is None
 
 
 def test_fallback_extract_bad_json(monkeypatch):
     monkeypatch.setattr(agent_brain, "_backboard_complete", lambda s, u, m: ("sorry, no idea", 100, 5))
+    assert fallback_extract(TRANSCRIPT, 1) is None
+
+
+def test_backboard_failed_status_is_an_error(monkeypatch):
+    monkeypatch.setenv("BACKBOARD_API_KEY", "test")
+    request = httpx.Request("POST", "https://app.backboard.io/api/threads/messages")
+    monkeypatch.setattr(
+        agent_brain.httpx, "post",
+        lambda *a, **k: httpx.Response(200, json={"status": "FAILED", "content": "Your free credit is reserved"}, request=request),
+    )
+    with pytest.raises(httpx.HTTPError):
+        agent_brain._backboard_complete("sys", "user", 10)
     assert fallback_extract(TRANSCRIPT, 1) is None
 
 
