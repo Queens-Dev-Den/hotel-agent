@@ -297,3 +297,66 @@ def test_separate_line_rate_latest_wins_and_bounds_skipped():
         "Hotel: Everything here is under $200.\n"
     )
     assert extractor.from_transcript(text, 1).quoted_rate == 129.0
+
+
+# --- a quoted price is a yes (real run, 2026-10-17: "the cheapest one I have is $50") ---
+
+@pytest.mark.parametrize("line,rate", [
+    ("The cheapest one I have is $50.", 50.0),
+    ("We've got a king for $120.", 120.0),
+    ("I got one for 89 dollars a night.", 89.0),
+    ("Our lowest rate tonight is two ninety nine a night.", 299.0),
+    ("There's one at $140 a night.", 140.0),
+])
+def test_offered_price_counts_as_available(line, rate):
+    a = check(t(line))
+    assert a.available is True and a.quoted_rate == rate
+
+
+@pytest.mark.parametrize("line", [
+    "It was $250 last week.",           # a price, but nothing offered
+    "We have nothing under $200.",      # a bound, and a no
+])
+def test_price_without_an_offer_is_not_a_yes(line):
+    assert check(t(line)).available is not True
+
+
+def test_have_nothing_is_a_no():
+    assert check(t("Sorry, we have nothing for those dates.")).available is False
+
+
+# Real runs, 2026-10-17 14:22-14:24: the tool recorded $149 but the regex found nothing.
+HOLD_THEN_YES = """Agent: Hi, I'm just calling to ask what's the cheapest room you have available from Saturday, October 17 to Sunday, October...
+Hotel: I can make sure that I can find one for you.
+Agent: Great, thank you. Do you have a room available for one guest on Saturday,...
+Hotel: Please hold.
+Agent: Okay, I'll hold.
+Hotel: Thanks for holding. Yes, $149 a night.
+Agent: So that's one room available for one guest on October seventeenth, at one hundred forty nine dollars a night, correct?
+Hotel: Yeah.
+Agent: Perfect, thank you so much. That's all I needed.
+Hotel: Wait, no.
+Agent: Oh, sorry about that. What did I get wrong?
+Hotel: No, but...
+"""
+IVR_THEN_YES = """Agent: Hi, I'm just calling to ask what's the cheapest room you have available from Saturday, October 17 to Sunday, October 18?
+Hotel: For reservations, press one. For the front desk, press two.
+Agent: I'll press two for the front desk.
+Hotel: Hello. How can I help you?
+Agent: Hi there, I'm just checking whether you have a room available for one guest.
+Hotel: Are you AI?
+Agent: Yes, I'm an automated assistant calling on someone's behalf. Do you have a room available for those dates?
+Hotel: Uh, yes, I do. $149 a night.
+Agent: Great, so you have a room available for one night at one hundred forty nine dollars a night, is that right?
+Hotel: Yeah.
+"""
+
+
+@pytest.mark.parametrize("text", [HOLD_THEN_YES, IVR_THEN_YES])
+def test_yes_with_a_price_is_available(text):
+    a = check(text)
+    assert a.available is True and a.quoted_rate == 149.0
+
+
+def test_bare_yes_without_a_price_is_still_unclear():
+    assert check(t("Yes.")).available is None
