@@ -10,8 +10,13 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
+import sys
+import time
 from datetime import date, timedelta
+
+import httpx
 
 from contracts import Availability, CallPlan, HotelCandidate, HotelRequest
 
@@ -104,13 +109,43 @@ def estimate_tokens(text: str) -> int:
 
 # --- Backboard -----------------------------------------------------------------
 
+BACKBOARD_DEFAULT_URL = "https://app.backboard.io/api"
+BACKBOARD_DEFAULT_MODEL = "google/gemini-2.5-flash-lite"  # "<llm_provider>/<model_name>"
+
+
 def _backboard_complete(system: str, user: str, max_tokens: int) -> tuple[str, int, int]:
     """One Backboard completion -> (text, tokens_in, tokens_out).
 
-    TODO(Phase 0): wire up once auth works and we know whether Backboard
-    exposes an OpenAI-compatible endpoint. Reads BACKBOARD_* from config.
+    POST /threads/messages auto-creates a thread, so each call is stateless.
+    Backboard has no output-token cap param; prompts ask for short JSON instead.
+    TODO: read BACKBOARD_* from config.py once it exists on main.
     """
-    raise NotImplementedError("Backboard client not wired up yet (Phase 0)")
+    api_key = os.environ.get("BACKBOARD_API_KEY")
+    if not api_key:
+        raise NotImplementedError("BACKBOARD_API_KEY not set")
+    base_url = os.environ.get("BACKBOARD_BASE_URL") or BACKBOARD_DEFAULT_URL
+    provider, _, model = (os.environ.get("BACKBOARD_MODEL") or BACKBOARD_DEFAULT_MODEL).partition("/")
+
+    resp = httpx.post(
+        f"{base_url.rstrip('/')}/threads/messages",
+        headers={"X-API-Key": api_key},
+        json={
+            "content": user,
+            "system_prompt": system,
+            "llm_provider": provider,
+            "model_name": model,
+            "json_output": True,
+            "memory": "off",
+            "stream": False,
+        },
+        timeout=15,
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    # Billing/model errors come back as HTTP 200 with status FAILED and the reason in content
+    if body.get("status") == "FAILED":
+        raise httpx.HTTPError(f"Backboard run failed: {body.get('content')}")
+    return body.get("content") or "", body.get("input_tokens") or 0, body.get("output_tokens") or 0
 
 
 def _backboard_json(system: str, user: str, max_tokens: int, usage: dict[str, int] | None) -> dict | None:
@@ -118,7 +153,7 @@ def _backboard_json(system: str, user: str, max_tokens: int, usage: dict[str, in
         return None
     try:
         text, tokens_in, tokens_out = _backboard_complete(system, user, max_tokens)
-    except NotImplementedError:
+    except (NotImplementedError, httpx.HTTPError):
         return None
     _usage_add(usage, tokens_in, tokens_out)
     match = re.search(r"\{.*\}", text, re.S)
@@ -144,7 +179,8 @@ def _regex_parse(prompt: str, today: date) -> dict | None:
     if not city_m:
         return None
     city = city_m["city"].strip(" .'-")
-    if not city:
+    # Descriptions like "the capital of Canada" aren't city names; let Backboard resolve them
+    if not city or len(city.split()) > 3 or re.match(r"(?:the|a|an|my|our|some)\b", city, re.I):
         return None
     # Rest of the prompt minus the city, so a city like "Mayfair" can't match a month
     rest = prompt[: city_m.start("city")] + " " + prompt[city_m.end("city"):]
@@ -299,3 +335,28 @@ def fallback_extract(
         notes=str(raw.get("notes") or "")[:200],
         source="backboard",
     )
+
+
+# --- Phase 0 latency check -----------------------------------------------------
+
+def _latency_check(models: list[str]) -> None:
+    """python agent_brain.py [provider/model ...]: time one tiny completion per model."""
+    from dotenv import load_dotenv
+
+    load_dotenv(".env")
+    for model in models or [os.environ.get("BACKBOARD_MODEL") or BACKBOARD_DEFAULT_MODEL]:
+        os.environ["BACKBOARD_MODEL"] = model
+        start = time.perf_counter()
+        try:
+            text, tokens_in, tokens_out = _backboard_complete(
+                'Reply with JSON only: {"ok": true}', "ping", 20
+            )
+        except (NotImplementedError, httpx.HTTPError) as e:
+            print(f"{model}: FAILED {e}")
+            continue
+        ms = (time.perf_counter() - start) * 1000
+        print(f"{model}: {ms:.0f} ms, {tokens_in} in / {tokens_out} out -> {text.strip()[:60]}")
+
+
+if __name__ == "__main__":
+    _latency_check(sys.argv[1:])
