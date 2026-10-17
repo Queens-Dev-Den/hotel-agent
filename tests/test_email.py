@@ -65,7 +65,6 @@ def test_body_mixed_outcomes():
     assert "We called the 3 cheapest hotels we found for these dates. Here is the cheapest one with a room available." in body
     assert (
         "=== Cheapest available hotel ===\nHotel Name: Alpha\nAddress: 1 King St, Toronto\nPhone: +14165550001\n"
-        "Reservation #: Not obtained\n"
         "Reservation Date: 2026-11-01 to 2026-11-03 (2 nights)\n"
         "Price for Stay: $378.00 total ($189.00/night x 2 nights, quoted on the call)\n"
         "Call Recording: https://el.test/c/c1\n"
@@ -170,19 +169,14 @@ def test_long_transcripts_not_truncated(monkeypatch):
     assert "Hotel: line 499" in body
 
 
-def test_reservation_number_is_a_normal_field():
+def test_reservation_number_not_in_email():
     run = mixed_run()
     run.availability[0].reservation_number = "HX4729"
-    body = email_service.render_body(email_service.build_payload(run))
-    assert "Phone: +14165550001\nReservation #: HX4729\n" in body
-    assert "WARNING" not in body
-
-
-def test_reservation_number_shown_for_non_highlighted_hotel():
-    run = mixed_run()
     run.availability[1].reservation_number = "ZZ1"
     body = email_service.render_body(email_service.build_payload(run))
-    assert "2. Beta, +14165550002: Not available, rate not given, reservation # ZZ1, recording" in body
+    assert "Reservation #" not in body and "reservation #" not in body
+    assert "HX4729" not in body and "ZZ1" not in body
+    assert "2. Beta, +14165550002: Not available, rate not given, recording https://el.test/c/c2" in body
 
 
 def test_stay_price_falls_back_to_search_total():
