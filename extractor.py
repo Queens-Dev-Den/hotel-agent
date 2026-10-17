@@ -59,6 +59,12 @@ _NATO = {w: w[0].upper() for w in (
     "november oscar papa quebec romeo sierra tango uniform victor whiskey yankee zulu").split()}
 _NATO["x-ray"] = _NATO["xray"] = "X"
 
+# An answering machine's greeting is not an answer ("the person you're trying to reach is not available").
+_VOICEMAIL = re.compile(
+    r"leave\s+(?:a|your)\s+message|at\s+the\s+(?:tone|beep)|after\s+the\s+(?:tone|beep)|record\s+your\s+message|"
+    r"voice\s*mail|(?:person|party|number)\s+you(?:['’]re|\s+are)\s+(?:trying\s+to\s+reach|calling)",
+    re.IGNORECASE,
+)
 _RATE = re.compile(
     r"""
     (?:\$|cad\s*|usd\s*)\s*(\d[\d,]*(?:\.\d{1,2})?) |
@@ -162,13 +168,70 @@ def _classify(utterance: str) -> tuple[bool | None, str | None]:
 
 _CEILING = re.compile(r"(?:under|below|less\s+than|up\s+to|over|above|more\s+than)\s*$", re.IGNORECASE)
 
+_UNITS = {w: i for i, w in enumerate(
+    "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen "
+    "fifteen sixteen seventeen eighteen nineteen".split())}
+_TENS = {w: 10 * i for i, w in enumerate("_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()) if w != "_"}
+_NUMBER_WORD = "|".join(sorted([*_UNITS, *_TENS, "hundred"], key=len, reverse=True))
+# 'two dollars', 'a hundred and fifty bucks', 'one eighty-nine a night'
+_SPOKEN_RATE = re.compile(
+    rf"\b((?:a\s+)?(?:(?:{_NUMBER_WORD}|and)[\s-]+)*(?:{_NUMBER_WORD}))\s*(?:dollars?|bucks|cad|a\s+night|per\s+night|/\s*night)",
+    re.IGNORECASE,
+)
 
-def _find_rate(utterance: str) -> float | None:
-    """First rate in the utterance, skipping bounds like 'under $200'."""
+
+def _words_to_number(phrase: str) -> int | None:
+    """'one eighty nine' -> 189, 'a hundred and fifty' -> 150, 'two' -> 2, 'twenty one' -> 21."""
+    tokens = [t for t in re.split(r"[\s-]+", phrase.lower()) if t and t not in ("a", "and")]
+    if not tokens:
+        return None
+    if "hundred" not in tokens:
+        rest = _sum_tokens(tokens[1:])
+        if tokens[0] in _UNITS and 1 <= _UNITS[tokens[0]] <= 9 and rest is not None and rest >= 10:
+            return _UNITS[tokens[0]] * 100 + rest  # colloquial: 'one eighty nine'
+        return _sum_tokens(tokens)
+    total = current = 0
+    for t in tokens:
+        if t == "hundred":
+            current = (current or 1) * 100
+        elif t in _UNITS or t in _TENS:
+            current += _UNITS.get(t, _TENS.get(t, 0))
+        else:
+            return None
+    return total + current
+
+
+def _sum_tokens(tokens: list[str]) -> int | None:
+    if not tokens:
+        return 0
+    if any(t not in _UNITS and t not in _TENS for t in tokens):
+        return None
+    return sum(_UNITS.get(t, _TENS.get(t, 0)) for t in tokens)
+
+
+def _rate_in(utterance: str) -> float | None:
+    """A nightly rate in one utterance: digits ('$2.00', '189 a night') or words ('two dollars')."""
     for m in _RATE.finditer(utterance):
         if _CEILING.search(utterance[: m.start()]):
             continue
-        return parse_rate(m.group(1) or m.group(2))
+        value = parse_rate(m.group(1) or m.group(2))
+        if value is not None:
+            return value
+    for m in _SPOKEN_RATE.finditer(utterance):
+        if _CEILING.search(utterance[: m.start()]):
+            continue
+        value = _words_to_number(m.group(1))
+        if value:
+            return float(value)
+    return None
+
+
+def _find_rate(utterances: list[str]) -> float | None:
+    """The last rate the hotel mentioned: the price is often a different sentence from 'yes'."""
+    for utterance in reversed(utterances):
+        rate = _rate_in(utterance)
+        if rate is not None:
+            return rate
     return None
 
 
@@ -179,6 +242,8 @@ def from_transcript(text: str | None, candidate_rank: int) -> Availability:
         return unknown
 
     utterances = _hotel_utterances(text)
+    if any(_VOICEMAIL.search(u) for u in utterances):
+        return unknown
     reservation_number = _volunteered_reservation_number(utterances)
     unknown.reservation_number = reservation_number
 
@@ -188,16 +253,10 @@ def from_transcript(text: str | None, candidate_rank: int) -> Availability:
             return unknown
         if signal is None:
             continue
-        rate = None
-        if signal:
-            # The rate often comes in its own line ("Yes, I have a room." ... "It's $129.").
-            # Use the answer's own rate, else the hotel's latest one (corrections win).
-            rate = _find_rate(utterance) or next(
-                (r for u in reversed(utterances) if (r := _find_rate(u)) is not None), None)
         return Availability(
             candidate_rank=candidate_rank,
             available=signal,
-            quoted_rate=rate,
+            quoted_rate=_find_rate(utterances) if signal else None,
             notes="",
             source="transcript",
             reservation_number=reservation_number,
