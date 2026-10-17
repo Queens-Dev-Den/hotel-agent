@@ -152,7 +152,7 @@ def test_every_template_var_is_supplied():
 def test_first_message_states_the_dates():
     plan = build_call_plan(REQUEST, CANDIDATE, run_id="run-1")
     assert plan.first_message == (
-        "Hi, I'm just calling to check if you have a room available from {{check_in}} to {{check_out}}."
+        "Hi, I'm just calling to ask what's the cheapest room you have available from {{check_in}} to {{check_out}}?"
     )
 
 

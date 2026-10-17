@@ -281,7 +281,7 @@ checking in {{check_in}} and out {{check_out}} ({{nights}} night(s)). You are NO
 - One short sentence per turn."""
 
 # Plain string: ElevenLabs fills {{check_in}} / {{check_out}} from dynamic_vars
-FIRST_MESSAGE = "Hi, I'm just calling to check if you have a room available from {{check_in}} to {{check_out}}."
+FIRST_MESSAGE = "Hi, I'm just calling to ask what's the cheapest room you have available from {{check_in}} to {{check_out}}?"
 
 
 def _spoken_date(d: date) -> str:
