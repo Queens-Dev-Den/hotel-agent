@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 import agent_brain
+import config
 from agent_brain import build_call_plan, estimate_tokens, fallback_extract, parse_prompt
 from contracts import HotelCandidate, HotelRequest
 
@@ -12,8 +13,8 @@ TODAY = date(2026, 10, 17)  # a Saturday
 
 @pytest.fixture(autouse=True)
 def no_real_backboard(monkeypatch):
-    """Importing config loads .env; never let a real key make network calls in tests."""
-    monkeypatch.delenv("BACKBOARD_API_KEY", raising=False)
+    """config loads .env on import; never let a real key make network calls in tests."""
+    monkeypatch.setattr(config, "BACKBOARD_API_KEY", "")
 
 
 def parse(prompt, **kw):
@@ -167,8 +168,7 @@ def test_fallback_extract_unknown(monkeypatch):
     assert fallback_extract(TRANSCRIPT, 3).available is None
 
 
-def test_fallback_extract_without_key_returns_none(monkeypatch):
-    monkeypatch.delenv("BACKBOARD_API_KEY", raising=False)
+def test_fallback_extract_without_key_returns_none():
     assert fallback_extract(TRANSCRIPT, 1) is None
 
 
@@ -178,7 +178,7 @@ def test_fallback_extract_bad_json(monkeypatch):
 
 
 def test_backboard_failed_status_is_an_error(monkeypatch):
-    monkeypatch.setenv("BACKBOARD_API_KEY", "test")
+    monkeypatch.setattr(config, "BACKBOARD_API_KEY", "test")
     request = httpx.Request("POST", "https://app.backboard.io/api/threads/messages")
     monkeypatch.setattr(
         agent_brain.httpx, "post",
@@ -193,4 +193,4 @@ def test_fallback_extract_respects_budget(monkeypatch):
     def boom(*a, **k):
         raise AssertionError("over budget, should not call")
     monkeypatch.setattr(agent_brain, "_backboard_complete", boom)
-    assert fallback_extract(TRANSCRIPT, 1, usage={"backboard_in": 1000, "backboard_out": 0}) is None
+    assert fallback_extract(TRANSCRIPT, 1, usage={"backboard_in": config.BACKBOARD_TOKEN_BUDGET - 100, "backboard_out": 0}) is None

@@ -60,3 +60,11 @@ PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")
 # Shared secret the ElevenLabs server tool sends in X-Tool-Secret
 TOOL_SHARED_SECRET = os.getenv("TOOL_SHARED_SECRET", "").strip()
 TOOL_SERVER_PORT = _int("TOOL_SERVER_PORT", 8000)
+
+# --- WS2: Backboard (agent_brain.py) -------------------------------------------
+BACKBOARD_API_KEY = os.getenv("BACKBOARD_API_KEY", "").strip()
+BACKBOARD_BASE_URL = (os.getenv("BACKBOARD_BASE_URL", "").strip() or "https://app.backboard.io/api").rstrip("/")
+# "<llm_provider>/<model_name>"; gemini-2.5-flash-lite won the Phase 0 latency test
+BACKBOARD_MODEL = os.getenv("BACKBOARD_MODEL", "").strip() or "google/gemini-2.5-flash-lite"
+# Hard cap per session (see docs/architecture.md token strategy)
+BACKBOARD_TOKEN_BUDGET = _int("BACKBOARD_TOKEN_BUDGET", 1200)

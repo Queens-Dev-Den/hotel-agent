@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import re
 import sys
 import time
@@ -18,9 +17,9 @@ from datetime import date, timedelta
 
 import httpx
 
+import config
 from contracts import Availability, CallPlan, HotelCandidate, HotelRequest
 
-BACKBOARD_TOKEN_BUDGET = 1200  # per session, see docs/architecture.md
 PARSE_MAX_TOKENS = 150
 EXTRACT_MAX_TOKENS = 300
 MAX_PROMPT_TOKENS = 300
@@ -98,8 +97,8 @@ def _usage_add(usage: dict[str, int] | None, tokens_in: int, tokens_out: int) ->
 
 def _budget_left(usage: dict[str, int] | None) -> int:
     if usage is None:
-        return BACKBOARD_TOKEN_BUDGET
-    return BACKBOARD_TOKEN_BUDGET - usage.get("backboard_in", 0) - usage.get("backboard_out", 0)
+        return config.BACKBOARD_TOKEN_BUDGET
+    return config.BACKBOARD_TOKEN_BUDGET - usage.get("backboard_in", 0) - usage.get("backboard_out", 0)
 
 
 def estimate_tokens(text: str) -> int:
@@ -109,26 +108,22 @@ def estimate_tokens(text: str) -> int:
 
 # --- Backboard -----------------------------------------------------------------
 
-BACKBOARD_DEFAULT_URL = "https://app.backboard.io/api"
-BACKBOARD_DEFAULT_MODEL = "google/gemini-2.5-flash-lite"  # "<llm_provider>/<model_name>"
-
-
-def _backboard_complete(system: str, user: str, max_tokens: int) -> tuple[str, int, int]:
+def _backboard_complete(
+    system: str, user: str, max_tokens: int, model: str | None = None
+) -> tuple[str, int, int]:
     """One Backboard completion -> (text, tokens_in, tokens_out).
 
     POST /threads/messages auto-creates a thread, so each call is stateless.
     Backboard has no output-token cap param; prompts ask for short JSON instead.
-    TODO: read BACKBOARD_* from config.py once it exists on main.
+    `model` ("<provider>/<model>") overrides config.BACKBOARD_MODEL.
     """
-    api_key = os.environ.get("BACKBOARD_API_KEY")
-    if not api_key:
+    if not config.BACKBOARD_API_KEY:
         raise NotImplementedError("BACKBOARD_API_KEY not set")
-    base_url = os.environ.get("BACKBOARD_BASE_URL") or BACKBOARD_DEFAULT_URL
-    provider, _, model = (os.environ.get("BACKBOARD_MODEL") or BACKBOARD_DEFAULT_MODEL).partition("/")
+    provider, _, model = (model or config.BACKBOARD_MODEL).partition("/")
 
     resp = httpx.post(
-        f"{base_url.rstrip('/')}/threads/messages",
-        headers={"X-API-Key": api_key},
+        f"{config.BACKBOARD_BASE_URL}/threads/messages",
+        headers={"X-API-Key": config.BACKBOARD_API_KEY},
         json={
             "content": user,
             "system_prompt": system,
@@ -341,15 +336,11 @@ def fallback_extract(
 
 def _latency_check(models: list[str]) -> None:
     """python agent_brain.py [provider/model ...]: time one tiny completion per model."""
-    from dotenv import load_dotenv
-
-    load_dotenv(".env")
-    for model in models or [os.environ.get("BACKBOARD_MODEL") or BACKBOARD_DEFAULT_MODEL]:
-        os.environ["BACKBOARD_MODEL"] = model
+    for model in models or [config.BACKBOARD_MODEL]:
         start = time.perf_counter()
         try:
             text, tokens_in, tokens_out = _backboard_complete(
-                'Reply with JSON only: {"ok": true}', "ping", 20
+                'Reply with JSON only: {"ok": true}', "ping", 20, model=model
             )
         except (NotImplementedError, httpx.HTTPError) as e:
             print(f"{model}: FAILED {e}")
