@@ -61,8 +61,15 @@ def test_sends_plan_overrides_and_variables(fake_api, monkeypatch):
     client_data = body["conversation_initiation_client_data"]
     assert client_data["dynamic_variables"] == PLAN.dynamic_vars
     agent = client_data["conversation_config_override"]["agent"]
-    assert agent["prompt"]["prompt"] == PLAN.system_prompt
+    assert agent["prompt"]["prompt"] == PLAN.system_prompt + voice_agent.CALL_RULES
     assert agent["first_message"] == PLAN.first_message
+
+
+def test_call_rules_always_sent(fake_api):
+    fake_api["gets"] = [_conversation(turns=HOTEL_YES)]
+    voice_agent.place_call(PLAN)
+    prompt = fake_api["posts"][0]["conversation_initiation_client_data"]["conversation_config_override"]["agent"]["prompt"]["prompt"]
+    assert "different or brand name" in prompt and "cut off, noisy or unclear" in prompt
 
 
 def test_listen_first_moves_opener_into_prompt(fake_api, monkeypatch):
