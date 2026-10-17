@@ -40,6 +40,13 @@ RENTAL_FANOUT = _int("RENTAL_FANOUT", 2)
 HTTP_TIMEOUT_S = _int("HTTP_TIMEOUT_S", 10)
 # Replay raw API responses from .cache/ in dev so test loops don't burn quota
 SEARCH_CACHE = _bool("SEARCH_CACHE", False)
+# Organizer rule: listings must be within this many km of the city border
+SEARCH_RADIUS_KM = _float("SEARCH_RADIUS_KM", 20.0)
+# Team rule: a cheap hotel far from downtown is worse than a slightly pricier central one.
+# Hard cap on distance from downtown (the city's OSM centre point), in km
+SEARCH_DOWNTOWN_KM = _float("SEARCH_DOWNTOWN_KM", 15.0)
+# Ranking cost of distance, in dollars per km per night (0 = rank by price only)
+SEARCH_KM_COST = _float("SEARCH_KM_COST", 2.0)
 
 
 # --- Competition / pipeline (shared) -------------------------------------------
@@ -95,3 +102,9 @@ VOICE_POLL_INTERVAL_S = _float("VOICE_POLL_INTERVAL_S", 2.0)
 TRANSCRIPT_WAIT_S = _int("TRANSCRIPT_WAIT_S", 20)
 # Re-fetches when a finished call's transcript is still empty
 TRANSCRIPT_RETRIES = _int("TRANSCRIPT_RETRIES", 4)
+# Dashboard link to one call's audio, put in the email; {id} = conversation_id.
+# Check it against a link copied from the ElevenLabs call history page.
+ELEVENLABS_CONVERSATION_URL = (
+    os.getenv("ELEVENLABS_CONVERSATION_URL", "").strip()
+    or "https://elevenlabs.io/app/agents/history/{id}"
+)

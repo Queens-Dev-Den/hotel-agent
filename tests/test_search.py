@@ -218,7 +218,8 @@ def test_pick_city_uses_the_one_near_the_listings():
     assert search_service.pick_city([], props) is None
 
 
-def test_radius_drops_far_and_coordless_listings(fake_api):
+def test_radius_drops_far_and_coordless_listings(fake_api, monkeypatch):
+    monkeypatch.setattr(search_service.config, "SEARCH_DOWNTOWN_KM", 1000.0)  # border rule only
     fake_api["hotels"] = [
         prop("far", nightly=40, gps={"latitude": 44.33, "longitude": -76.16}),  # Gananoque
         prop("nogps", nightly=45, gps=None),
@@ -243,3 +244,56 @@ def test_radius_lookup_failure_keeps_listings(fake_api):
 
     assert [c.name for c in find_candidates(REQ, stats=stats)] == ["H1"]
     assert stats["radius_unchecked"] == 1
+
+
+# --- distance from downtown (team rule) -------------------------------------------
+
+def test_km_from_downtown():
+    city_hall = {"lat": "43.6534817", "lon": "-79.3839347"}
+    assert search_service.km_from_downtown(43.6534817, -79.3839347, city_hall) == 0.0
+    assert 19 < search_service.km_from_downtown(43.6777, -79.6248, city_hall) < 20.5  # Pearson airport
+
+
+def test_drops_listings_far_from_downtown_even_inside_border(fake_api, monkeypatch):
+    monkeypatch.setattr(search_service.config, "SEARCH_DOWNTOWN_KM", 10.0)
+    fake_api["hotels"] = [
+        prop("outskirts", nightly=40, gps={"latitude": 43.78, "longitude": -79.50}),  # inside border, ~13 km out
+        prop("central", nightly=90, gps={"latitude": 43.70, "longitude": -79.40}),
+    ]
+    fake_api["details"] = {n: {"phone": f"416-555-01{i}0", "address": "1 King St"}
+                           for i, n in enumerate(("outskirts", "central"))}
+    stats = {}
+
+    out = find_candidates(REQ, stats=stats)
+
+    assert [c.name for c in out] == ["central"]
+    assert stats["far_from_downtown"] == 1
+
+
+def test_closer_slightly_pricier_hotel_ranks_first(fake_api, monkeypatch):
+    monkeypatch.setattr(search_service.config, "SEARCH_KM_COST", 2.0)
+    monkeypatch.setattr(search_service.config, "MAX_CANDIDATES", 1)
+    fake_api["hotels"] = [
+        prop("cheap-far", nightly=100, gps={"latitude": 43.80, "longitude": -79.40}),   # ~11 km
+        prop("near", nightly=105, gps={"latitude": 43.705, "longitude": -79.40}),      # ~0.6 km
+    ]
+    fake_api["details"] = {n: {"phone": f"416-555-02{i}0", "address": "1 King St"}
+                           for i, n in enumerate(("cheap-far", "near"))}
+
+    out = find_candidates(REQ)  # 2 nights: +$10 for near vs ~+$44 of distance cost for far
+
+    assert [c.name for c in out] == ["near"]
+    assert out[0].distance_km == pytest.approx(0.6, abs=0.1)
+
+
+def test_km_cost_zero_ranks_by_price_only(fake_api, monkeypatch):
+    monkeypatch.setattr(search_service.config, "SEARCH_KM_COST", 0.0)
+    monkeypatch.setattr(search_service.config, "MAX_CANDIDATES", 1)
+    fake_api["hotels"] = [
+        prop("cheap-far", nightly=100, gps={"latitude": 43.80, "longitude": -79.40}),
+        prop("near", nightly=105, gps={"latitude": 43.705, "longitude": -79.40}),
+    ]
+    fake_api["details"] = {n: {"phone": f"416-555-03{i}0", "address": "1 King St"}
+                           for i, n in enumerate(("cheap-far", "near"))}
+
+    assert [c.name for c in find_candidates(REQ)] == ["cheap-far"]

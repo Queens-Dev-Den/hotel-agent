@@ -32,6 +32,7 @@ class HotelCandidate(BaseModel):
     booking_url: str | None = None  # cheapest booking site's link, from search (never used by the call)
     booking_source: str | None = None  # e.g. "Booking.com", or the hotel's own name if official
     website: str | None = None  # the hotel's own site
+    distance_km: float | None = None  # from downtown (the city's centre point), None if unknown
 
 
 class SearchResult(BaseModel):
@@ -80,9 +81,11 @@ class HotelSection(BaseModel):
     address: str
     phone: str
     availability: bool | None
-    quoted_rate: float | None = None
+    quoted_rate: float | None = None  # per night, from the call
     transcript: str | None = None
-    reservation_number: str | None = None  # only if the hotel volunteers one; we never book
+    reservation_number: str | None = None  # optional for the organizers; only if the hotel gives one
+    search_price: float | None = None  # total stay from search, used when the call quoted no rate
+    audio_url: str | None = None  # ElevenLabs link to the call recording (organizers' proof)
 
 
 class EmailPayload(BaseModel):

@@ -1,4 +1,5 @@
-"""WS4: build and send the single availability email (cheapest available hotel + its transcript).
+"""WS4: build and send the single email: the cheapest available hotel with its price for
+the stay, reservation # (if any), call-recording link and transcript.
 
 Plain text only. Resend first, Gmail SMTP fallback.
 """
@@ -17,6 +18,7 @@ from contracts import (
     CallResult,
     EmailPayload,
     EmailReceipt,
+    HotelRequest,
     HotelSection,
     Run,
 )
@@ -36,6 +38,13 @@ def _status_for(rank: int, run: Run, call: CallResult | None) -> Availability | 
         if a.candidate_rank == rank:
             return a
     return call.availability if call else None
+
+
+def audio_url(conversation_id: str) -> str | None:
+    """Dashboard link to one call's recording; None for fake or failed calls."""
+    if not conversation_id or conversation_id.startswith("mock-"):
+        return None
+    return config.ELEVENLABS_CONVERSATION_URL.format(id=conversation_id)
 
 
 def build_payload(run: Run) -> EmailPayload:
@@ -61,6 +70,8 @@ def build_payload(run: Run) -> EmailPayload:
                 quoted_rate=status.quoted_rate if status else None,
                 transcript=transcript,
                 reservation_number=status.reservation_number if status else None,
+                search_price=cand.total_price,
+                audio_url=audio_url(call.conversation_id) if call else None,
             )
         )
 
@@ -92,17 +103,36 @@ def best_index(hotels: list[HotelSection]) -> int:
     return min(available, key=lambda i: (hotels[i].quoted_rate is None, hotels[i].quoted_rate or 0, i))
 
 
+def nights(req: HotelRequest) -> int:
+    return max((req.check_out - req.check_in).days, 1)
+
+
+def _plural(n: int, word: str) -> str:
+    return f"{n} {word}{'s' if n != 1 else ''}"
+
+
 def _rate_text(h: HotelSection) -> str:
-    return f"${h.quoted_rate:,.2f}" if h.quoted_rate is not None else "not given"
+    return f"${h.quoted_rate:,.2f}/night" if h.quoted_rate is not None else "not given"
 
 
-def _warning(h: HotelSection) -> list[str]:
-    if not h.reservation_number:
-        return []
-    return [
-        f"WARNING: Hotel issued reservation # {h.reservation_number}. "
-        "No booking was intended, please cancel it."
-    ]
+def stay_price_text(h: HotelSection, n: int) -> str:
+    """Total for the stay: the call's nightly quote x nights, else the search total."""
+    if h.quoted_rate is not None:
+        return (f"${h.quoted_rate * n:,.2f} total "
+                f"(${h.quoted_rate:,.2f}/night x {_plural(n, 'night')}, quoted on the call)")
+    if h.search_price is not None:
+        return f"${h.search_price:,.2f} total (online search price; no rate quoted on the call)"
+    return "not given"
+
+
+def _extras(h: HotelSection) -> str:
+    """Reservation # and recording link for the one-line summary of other hotels."""
+    parts = []
+    if h.reservation_number:
+        parts.append(f"reservation # {h.reservation_number}")
+    if h.audio_url:
+        parts.append(f"recording {h.audio_url}")
+    return "".join(f", {p}" for p in parts)
 
 
 def render_body(payload: EmailPayload) -> str:
@@ -114,6 +144,7 @@ def render_body(payload: EmailPayload) -> str:
     h = hotels[best]
     found = h.availability is True
     total = len(hotels)
+    n = nights(req)
 
     lines = [
         f"Check-in: {req.check_in.isoformat()}",
@@ -128,9 +159,11 @@ def render_body(payload: EmailPayload) -> str:
         f"Hotel Name: {h.name}",
         f"Address: {h.address}",
         f"Phone: {h.phone}",
+        f"Reservation #: {h.reservation_number or 'Not obtained'}",
+        f"Reservation Date: {req.check_in.isoformat()} to {req.check_out.isoformat()} ({_plural(n, 'night')})",
+        f"Price for Stay: {stay_price_text(h, n)}",
+        f"Call Recording: {h.audio_url or 'Not available'}",
         f"Availability: {_status_text(h.availability)}",
-        f"Quoted Rate: {_rate_text(h)}",
-        *_warning(h),
         "",
         "Transcript:",
         h.transcript or "",
@@ -139,8 +172,8 @@ def render_body(payload: EmailPayload) -> str:
     if others:
         lines += ["", "=== Other hotels we called ==="]
         for i, o in others:
-            lines.append(f"{i + 1}. {o.name}, {o.phone}: {_status_text(o.availability)}, rate {_rate_text(o)}")
-            lines += _warning(o)
+            lines.append(f"{i + 1}. {o.name}, {o.phone}: {_status_text(o.availability)}, "
+                         f"rate {_rate_text(o)}{_extras(o)}")
     return "\n".join(lines) + "\n"
 
 
@@ -202,6 +235,8 @@ def send(run: Run) -> EmailReceipt:
     payload = build_payload(run)
     check_payload(payload)
     body = render_body(payload)
+    if not payload.hotels[best_index(payload.hotels)].audio_url:
+        log.warning("reported hotel has no call-recording link; the organizers use it as proof")
 
     message_id = None
     if config.EMAIL_PROVIDER == "resend":

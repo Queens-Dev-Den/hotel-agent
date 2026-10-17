@@ -4,6 +4,8 @@
 
 **Target:** one prompt in → one email out, in **under 4 minutes**. The email highlights the **cheapest hotel that has a room** for the requested dates, with the **full transcript of that call**, and lists the other hotels we called in one line each. We **never book**: the agent only asks whether a room is available.
 
+**Organizer rules (updated on the day):** listings must be within **20 km of the city border** (`SEARCH_RADIUS_KM`). The one email carries the team number in the subject, plus the hotel name, address, the phone we called, the **price for the stay**, a **reservation # if we got one** (optional, "not a big deal" if not), and the **link to the call audio on ElevenLabs**, which the organizers use to check the agent didn't make anything up.
+
 Backboard runs before and after the calls. ElevenLabs runs the live calls, **all three at the same time**. The email goes out once, when the last call has ended and its transcript is in.
 
 ## Pipeline
@@ -20,7 +22,7 @@ Prompt ──► search_service.py ──► agent_brain.py ──► voice_agen
                                                               │
               extractor.py + agent_brain.py fallback if a tool never fired
                                                               │
-                                  email_service.py ──► ONE email: cheapest available + its transcript, others in 1 line
+                                  email_service.py ──► ONE email: cheapest available + price, recording link, transcript; others in 1 line
                                                               │
                                       telemetry.py tokens + stage times
 ```
@@ -61,10 +63,13 @@ Defined in `telemetry.py` and serialized to `run_telemetry.json`. Each module wr
 
 - **Hotel name, address and phone in the email come from `candidates[]`**, not from the call.
 - **Availability comes from the call** (`availability[]`). If a call produced no answer (voicemail, no answer, error), the email says so for that hotel instead of guessing.
-- **The email highlights the cheapest available hotel** (lowest quoted rate among hotels that said yes; search-price order when there's no quote; the cheapest hotel overall if none said yes). Only **its** transcript is included, verbatim. Every transcript is still saved in `calls[].transcript` and `run_telemetry.json`. The other hotels get one line each: status and rate.
+- **The email highlights the cheapest available hotel** (lowest quoted rate among hotels that said yes; search-price order when there's no quote; the cheapest hotel overall if none said yes). Only **its** transcript is included, verbatim. Every transcript is still saved in `calls[].transcript` and `run_telemetry.json`. The other hotels get one line each: status, nightly rate, reservation # (if any) and recording link.
+- **Price for Stay** is the call's nightly `quoted_rate` × nights. With no quote, it falls back to the search's `total_price`, labelled as the online price.
+- **Reservation #** is a normal field: the number if the hotel gave one, otherwise "Not obtained".
+- **Call Recording** is `ELEVENLABS_CONVERSATION_URL` with the call's `conversation_id`. Fake (`mock-`) and failed calls get "Not available". A missing link logs a warning but never blocks the email.
 - `stage_ms.call` is the wall-clock time of the slowest call, since the calls overlap.
 - `tokens.agent_llm` is the sum across the 3 calls.
-- The subject is built from one constant in `config.py`, `Team # {TEAM_NO} - Hotel Reservation Confirmed!`, and checked against the exact required string before sending. See the open question about whether that string still applies now that we don't book.
+- The subject is built from one constant in `config.py`, `Team # {TEAM_NO} - Hotel Reservation Confirmed!`, and checked against the exact required string before sending. The organizers only asked for the team number in the subject, so the fixed string is kept as is.
 - Every stage appends to `run_telemetry.json`. The UI log and the pitch metrics both read that one file.
 
 ## Token strategy

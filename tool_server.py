@@ -45,6 +45,7 @@ def results_for(run_id: str) -> dict[int, Availability]:
         return {rank: a for (rid, rank), a in _results.items() if rid == run_id}
 
 
+NOT_ANSWERED = ("voicemail", "no_answer", "error")
 Fallback = Callable[..., Availability | None]  # agent_brain.fallback_extract(transcript, rank, usage=...)
 
 
@@ -62,6 +63,8 @@ def resolve_availability(run: Run, fallback: Fallback | None = None, usage: dict
     for cand in sorted(run.candidates, key=lambda c: c.rank):
         call = calls.get(cand.rank)
         transcript = call.transcript if call else None
+        if call and call.outcome in NOT_ANSWERED:
+            transcript = None  # a greeting or a dead line says nothing about rooms
         regex = extractor.from_transcript(transcript, cand.rank)
 
         answer = tool_results.get(cand.rank)
