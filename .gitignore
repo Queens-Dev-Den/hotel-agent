@@ -24,6 +24,7 @@ build/
 # Run artifacts (regenerated every run)
 .cache/
 run_telemetry.json
+telemetry_runs/
 *.log
 transcripts/
 
