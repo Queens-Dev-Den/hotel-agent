@@ -69,7 +69,7 @@ Defined in `telemetry.py` and serialized to `run_telemetry.json`. Each module wr
 - **Call Recording** is `ELEVENLABS_CONVERSATION_URL` with the call's `conversation_id`. Fake (`mock-`) and failed calls get "Not available". A missing link logs a warning but never blocks the email.
 - `stage_ms.call` is the wall-clock time of the slowest call, since the calls overlap.
 - `tokens.agent_llm` is the sum across the 3 calls.
-- The subject is built from one constant in `config.py`, `Team # {TEAM_NO} - Hotel Reservation Confirmed!`, and checked against the exact required string before sending. The organizers only asked for the team number in the subject, so the fixed string is kept as is.
+- The subject is built from one constant in `config.py`, `Team # {TEAM_NO} - Hotel Quotes Confirmed`, and checked against the exact required string before sending. The organizers only asked for the team number in the subject, so the fixed string is kept as is.
 - Every stage appends to `run_telemetry.json`. The UI log and the pitch metrics both read that one file.
 
 ## Token strategy
