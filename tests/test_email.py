@@ -136,3 +136,15 @@ def test_long_transcripts_not_truncated(monkeypatch):
     run.calls[0].transcript = "\n".join(f"Hotel: line {i}" for i in range(500))
     body = email_service.render_body(email_service.build_payload(run))
     assert "Hotel: line 499" in body
+
+
+def test_reservation_number_triggers_cancel_warning():
+    run = mixed_run()
+    run.availability[0].reservation_number = "HX4729"
+    body = email_service.render_body(email_service.build_payload(run))
+    assert "WARNING: Hotel issued reservation # HX4729. No booking was intended, please cancel it." in body
+    assert body.count("WARNING") == 1
+
+
+def test_no_warning_without_reservation_number():
+    assert "WARNING" not in email_service.render_body(email_service.build_payload(mixed_run()))

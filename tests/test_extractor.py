@@ -167,3 +167,44 @@ def test_price_bounds_are_not_the_rate():
 
 def test_no_problem_is_not_negative():
     assert check(t("No problem, we have a room at $99.")).available is True
+
+
+# --- reservation numbers (only if the hotel volunteers one) --------------------
+
+@pytest.mark.parametrize("raw,expected", [
+    ("HX4729", "HX4729"), ("hx 4729", "HX4729"), (" h-x-4729 ", "H-X-4729"),
+    ("A1", None), ("", None), (None, None), ("x" * 25, None), ("ab#123", None),
+])
+def test_normalize_reservation_number(raw, expected):
+    assert extractor.normalize_reservation_number(raw) == expected
+
+
+def test_validate_passes_reservation_number_through():
+    a = extractor.validate(tool(reservation_number="hx 4729"))
+    assert a.reservation_number == "HX4729"
+    assert extractor.validate(tool()).reservation_number is None
+    assert extractor.validate(tool(reservation_number="??")).reservation_number is None
+
+
+@pytest.mark.parametrize("line", [
+    "Your reservation number is HX4729.",
+    "Your reservation number is H X four seven two nine.",
+    "The confirmation number is hotel x-ray 4-7-2-9, thanks.",
+    "Reservation number: H X 4 7 2 9",
+])
+def test_volunteered_number_from_transcript(line):
+    a = check(t("Yes we have a room at $189.", line))
+    assert a.reservation_number == "HX4729" and a.available is True
+
+
+def test_number_captured_even_when_availability_unclear():
+    a = check(t("Your reservation number is AB1234, anything else?"))
+    assert a.reservation_number == "AB1234"
+
+
+def test_no_number_unless_volunteered():
+    assert check(t("Yes, we have a room at $189.")).reservation_number is None
+    assert check(t("Sorry, sold out.")).reservation_number is None
+    # the agent's own words never count
+    text = "Agent: reservation number is ZZ9999\nHotel: Sold out."
+    assert check(text).reservation_number is None

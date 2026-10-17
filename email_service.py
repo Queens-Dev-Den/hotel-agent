@@ -60,6 +60,7 @@ def build_payload(run: Run) -> EmailPayload:
                 availability=status.available if status else None,
                 quoted_rate=status.quoted_rate if status else None,
                 transcript=transcript,
+                reservation_number=status.reservation_number if status else None,
             )
         )
 
@@ -98,6 +99,13 @@ def render_body(payload: EmailPayload) -> str:
             f"Phone: {h.phone}",
             f"Availability: {_status_text(h.availability)}",
             f"Quoted Rate: {rate}",
+        ]
+        if h.reservation_number:
+            lines.append(
+                f"WARNING: Hotel issued reservation # {h.reservation_number}. "
+                "No booking was intended, please cancel it."
+            )
+        lines += [
             "",
             "Transcript:",
             h.transcript or "",

@@ -44,6 +44,21 @@ _POSITIVE = re.compile(
     """,
     re.IGNORECASE | re.VERBOSE,
 )
+# A reservation number is only ever captured if the hotel volunteers one (we never book).
+_RESNUM_VALID = re.compile(r"^[A-Z0-9-]{4,20}$")
+_RESNUM_PHRASE = re.compile(
+    r"(?:reservation|confirmation|booking)\s*(?:number|code|#|no\.?)\s*(?:is|:|would\s+be)?\s*(?P<code>[A-Za-z0-9][A-Za-z0-9\-, ]{2,60})",
+    re.IGNORECASE,
+)
+_SPOKEN = {
+    **{w: str(i) for i, w in enumerate("zero one two three four five six seven eight nine".split())},
+    "oh": "0",
+}
+_NATO = {w: w[0].upper() for w in (
+    "alpha alfa bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike "
+    "november oscar papa quebec romeo sierra tango uniform victor whiskey yankee zulu").split()}
+_NATO["x-ray"] = _NATO["xray"] = "X"
+
 _RATE = re.compile(
     r"""
     (?:\$|cad\s*|usd\s*)\s*(\d[\d,]*(?:\.\d{1,2})?) |
@@ -67,6 +82,44 @@ def parse_rate(raw: str | None) -> float | None:
     return value if value > 0 else None
 
 
+def normalize_reservation_number(raw: str | None) -> str | None:
+    """'hx 4729' -> 'HX4729'; anything not matching ^[A-Z0-9-]{4,20}$ -> None."""
+    if not raw:
+        return None
+    code = re.sub(r"\s+", "", raw).upper()
+    return code if _RESNUM_VALID.match(code) else None
+
+
+def _spoken_code(fragment: str) -> str | None:
+    """'H X four seven two nine' / 'hotel x-ray 4-7-2-9' / 'HX4729' -> 'HX4729'."""
+    out = []
+    for token in re.split(r"[\s,]+", fragment.strip()):
+        token = token.strip(".").lower()
+        if not token:
+            continue
+        pieces = ["x-ray"] if token == "x-ray" else token.split("-")
+        for piece in pieces:
+            if piece in _SPOKEN:
+                out.append(_SPOKEN[piece])
+            elif piece in _NATO:
+                out.append(_NATO[piece])
+            elif re.fullmatch(r"[a-z0-9]+", piece) and (len(piece) == 1 or any(c.isdigit() for c in piece)):
+                out.append(piece.upper())
+            else:
+                return normalize_reservation_number("".join(out))  # a plain word ends the code
+    return normalize_reservation_number("".join(out))
+
+
+def _volunteered_reservation_number(utterances: list[str]) -> str | None:
+    for utterance in reversed(utterances):
+        m = _RESNUM_PHRASE.search(utterance)
+        if m:
+            code = _spoken_code(m.group("code"))
+            if code:
+                return code
+    return None
+
+
 def validate(payload: ToolAvailabilityRequest) -> Availability:
     """Coerce available to bool, parse quoted_rate, trim notes; source='tool'."""
     return Availability(
@@ -75,6 +128,7 @@ def validate(payload: ToolAvailabilityRequest) -> Availability:
         quoted_rate=parse_rate(payload.quoted_rate),
         notes=(payload.notes or "").strip()[:MAX_NOTES],
         source="tool",
+        reservation_number=normalize_reservation_number(payload.reservation_number),
     )
 
 
@@ -124,7 +178,11 @@ def from_transcript(text: str | None, candidate_rank: int) -> Availability:
     if not text:
         return unknown
 
-    for utterance in reversed(_hotel_utterances(text)):
+    utterances = _hotel_utterances(text)
+    reservation_number = _volunteered_reservation_number(utterances)
+    unknown.reservation_number = reservation_number
+
+    for utterance in reversed(utterances):
         signal, flag = _classify(utterance)
         if flag == "ambiguous":
             return unknown
@@ -136,5 +194,6 @@ def from_transcript(text: str | None, candidate_rank: int) -> Availability:
             quoted_rate=_find_rate(utterance) if signal else None,
             notes="",
             source="transcript",
+            reservation_number=reservation_number,
         )
     return unknown
