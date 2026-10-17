@@ -96,3 +96,46 @@ On a normal run this whole step uses **0 tokens**.
 - **Don't trust a "200 OK".** Backboard returns billing and model errors as a normal success with `status: FAILED` inside. We check for it so an error message is never treated as an answer.
 - **Have more than one way to get the answer.** On one real run the agent's tool result went to a teammate's laptop instead of ours. Because we can also read the answer from the conversation record and the transcript, the result was still correct.
 - **Shorter calls save the most.** Our prompt is only a small part of what the agent reads each turn, so cutting a few turns from a call saves far more than trimming the prompt.
+
+## Voice and telephony (Jordan: WS3 and team lead)
+
+### My responsibilities
+- **Team lead:** the plan and module boundaries (architecture, one doc per workstream, integration and demo runbook), the git workflow (one branch per person, merge commits only, shared files changed only in small contract PRs), the workstream assignment, and the repo setup (`.gitignore`, `.env.example`).
+- **WS3, the phone calls:** the ElevenLabs agent and Twilio number, `voice_agent.py` (`place_call` and `conversation_details`), the WS3 section of `config.py`, the `record_availability` tool definition (`agents/booking_tool.json`), `docs/ws3-voice.md`, and 24 voice tests (`tests/test_voice.py` plus the shared contract test).
+
+### What I built
+- **`place_call(plan)`** starts one outbound call and blocks until it's over. The pipeline runs 3 of these at once, so it shares no state between calls. It sends that call's prompt, opener and variables, polls the conversation every 2 s, retries while the transcript is still empty, and returns one `Agent:` / `Hotel:` line per turn.
+- **Outcome in a fixed order, all 0 tokens:** voicemail (the voicemail tool fired) → no answer (the hotel never spoke) → the agent's own tool result → the same tool call read from the conversation record (Zach's fix, for when the tool's request reached another laptop) → Isaac's transcript regex. A person who answered without a clear yes is reported as "unavailable" with the answer left unknown, so the email never claims a hotel is sold out when we didn't hear it.
+- **Agent setup in code where possible:** the prompt and call rules are sent with every call, so the behaviour is in git and tested, not only in the dashboard. The live dashboard settings are recorded in `docs/ws3-voice.md`.
+
+### What live calls taught us
+Every fix below came from a real call transcript, not a guess.
+
+| What went wrong on a call | Fix |
+|---|---|
+| The agent started a 9-second opener the moment the line connected, talking over the hotel's phone menu | **Listen first:** stay silent on pickup and say the opener after the hotel speaks |
+| "Press 1" was heard as "trust one", and the agent picked front desk over reservations | Speech-recognition keywords (press, reservations, front desk, available, sold out, …) and menu rules (reservations first, press 0 if unclear) |
+| Staff said "one moment" and the agent asked "Are you still there?" after 10 s | Wait 25 s before speaking into silence, and a rule to stay silent through holds |
+| The agent's text had `[slow]`, `[happy]`, `[speaking]` tags in it | Turned off the voice's expressive mode, which asks the LLM to write emotion tags |
+| It jumped in on half sentences ("I think-") | Patient turn-taking (replies went from about 0.8 s to about 1.0 s) |
+| A franchise answered with its brand name, and a misheard "hi" became "bye" | Rules: a different or brand name isn't a wrong number; a lone "bye" at pickup is probably misheard |
+| It said goodbye but never hung up; later, endings took about 15 s with two goodbyes | Repeat back only the price ("So $43 a night?"), then one "Thank you!" through the hang-up tool |
+| A phone system asked for an access code and got a spoken explanation | Press 0 for codes and extensions, hang up if nothing changes |
+| The agent was told to call `record_availability`, but the tool was never attached to it | Created and attached it through the API, then checked it end to end: 200 with the right secret, 401 without |
+
+### Numbers
+- **Reply time** (from the hotel stopping to the agent's voice starting): median **0.77 s**, 90th percentile 1.04 s, and about **1.0 s** after switching to patient turns. Speech recognition took 0.04 s, the LLM's first token 0.15 s and the voice's first audio 0.08 s. The other ~0.5 s is turn detection plus the phone network, so a faster LLM would barely help.
+- **The `record_availability` round trip** (ElevenLabs → tunnel → laptop): **0.12 s**.
+- **The first 11 real-hotel calls**, made before the fixes above: **3 answered, 4 voicemail, 4 hung up.** All four hang-ups trace to problems in the table (the "still there?" interruption, tags, talking over the hotel, the access code). We haven't re-measured since the fixes.
+- ElevenLabs now scores every call on three criteria (got availability, ended promptly, never booked), so the success rate can be tracked without reading transcripts.
+
+### Setup lessons
+- **Telephony takes the longest:** ElevenLabs doesn't sell numbers, so it's a Twilio number imported into ElevenLabs. Twilio's trial can only call verified numbers and plays a "press a key" message first, so we upgraded. Canada had to be enabled in Twilio's geo permissions, or every call failed with "not authorized".
+- **The tunnel is a single point of failure:** the tool needs a public URL to the laptop running the app. Our ngrok was too old for the account (3.3.1 vs a 3.20 minimum), the token was pasted wrong once, and two laptops on the same domain sent a result to the wrong machine. Rule for the demo: exactly one laptop runs the tunnel.
+
+### Critique: what I'd do differently
+- **The prompt grew from 238 to about 628 tokens**, because every live failure added a rule. Calls became far more robust, but the prompt is now about twice our budget. Next step: merge the overlapping rules (holds, menus and "I'm automated" appear in both the base prompt and the call rules), or move rare cases into ElevenLabs workflow nodes that only load when needed.
+- **Test against real phone systems earlier.** Teammates playing the hotel passed every test. Real receptionists, phone menus and voicemail exposed different failures in the first 11 calls.
+- **Keep the agent's configuration in the repo from day one.** For most of the day the tool and settings lived only in the ElevenLabs dashboard, which is how the missing tool went unnoticed. Creating and updating the agent through the API from a checked-in file would have caught it.
+- **We stayed honest even though hotels dislike AI calls.** If asked, the agent says it's an automated assistant, and it leaves politely if they don't want to talk to one. Instead of hiding what it is, we worked on sounding relaxed and getting to the point in the first sentence; whether that wins more answers still needs a measured batch of real calls.
+- **Voicemail is the biggest limit we can't fix in the conversation itself:** about a third of real calls hit it. Calling the next 3 hotels when none of the first 3 confirm (now in the pipeline) is the right lever.
