@@ -26,7 +26,6 @@ log = logging.getLogger(__name__)
 
 SERPAPI_URL = "https://serpapi.com/search.json"
 CACHE_DIR = Path(".cache/serpapi")
-MAX_CANDIDATES = 3  # contract: SearchResult.candidates is max 3
 TOLL_FREE_PREFIXES = ("800", "833", "844", "855", "866", "877", "888")
 
 
@@ -143,14 +142,14 @@ def find_candidates(request: HotelRequest, *, stats: dict[str, int] | None = Non
     nights = max((request.check_out - request.check_in).days, 1)
 
     kinds = (False, True) if config.SEARCH_RENTALS else (False,)
-    with ThreadPoolExecutor(max_workers=config.DETAILS_FANOUT + config.RENTAL_FANOUT) as pool:
+    with ThreadPoolExecutor(max_workers=config.SEARCH_TOP_N + config.RENTAL_FANOUT) as pool:
         results = list(pool.map(lambda r: _search(request, r), kinds))
 
         # Rentals get their own small budget: they are usually the cheapest but
         # rarely list a phone, so a shared budget would crowd out callable hotels.
         shortlist: list[tuple[float, dict, str]] = []
         for props, source, budget in zip(
-            results, ("serpapi_hotel", "serpapi_rental"), (config.DETAILS_FANOUT, config.RENTAL_FANOUT)
+            results, ("serpapi_hotel", "serpapi_rental"), (config.SEARCH_TOP_N, config.RENTAL_FANOUT)
         ):
             priced = []
             for prop in props:
@@ -197,7 +196,7 @@ def find_candidates(request: HotelRequest, *, stats: dict[str, int] | None = Non
         ))
 
     candidates.sort(key=lambda c: (c[0], c[1]))
-    top = [c[2] for c in candidates[: min(config.SEARCH_TOP_N, MAX_CANDIDATES)]]
+    top = [c[2] for c in candidates[: config.MAX_CANDIDATES]]
     if not top:
         raise RuntimeError(f"No callable listings (with phone and address) found in {request.city}")
     # Rank by price among the chosen ones, 1 = cheapest
