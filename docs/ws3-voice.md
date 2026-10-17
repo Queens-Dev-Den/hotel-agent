@@ -72,3 +72,43 @@ Call handling is 10 of the 30 points: IVR navigation, hold tolerance, natural tu
 - Three simultaneous calls to the mock hotel each navigate the IVR, survive the hold, get an availability answer, fire the tool and return a full transcript, 3 times out of 3.
 - Voicemail is detected and ends the call in ≤ 45 s.
 - The agent never asks for or offers payment details, and never books.
+
+## Live setup (as built, Oct 17)
+
+This is what is actually configured in ElevenLabs and Twilio. If the agent breaks or another laptop runs the demo, rebuild from here.
+
+### Code
+- `voice_agent.place_call(plan)`: Twilio outbound call (`POST /v1/convai/twilio/outbound-call`) with the plan's prompt and first message as overrides and `dynamic_vars`, then polls `GET /v1/convai/conversations/{id}` every 2 s until `done`/`failed`, retrying up to 4 times while the transcript is empty.
+- Outcome: `voicemail` (voicemail tool or termination reason) → `no_answer` (hotel never spoke) → `available` / `unavailable` from the tool result, falling back to `extractor.from_transcript`. A person who answered without a clear yes is `unavailable` with `availability=None`. Still running after `MAX_CALL_DURATION_S + TRANSCRIPT_WAIT_S` is `error`.
+- `voice_agent.conversation_details(id)` returns the raw conversation for the agent LLM token count.
+- Settings live in the WS3 section of `config.py`. Tests: `tests/test_voice.py` (fake API) and `tests/test_voice_contract.py`.
+
+### Agent: `Hotel Availability Caller`
+| Setting | Value |
+|---|---|
+| LLM | `deepseek-v41-flash`, temperature 0.25, max 150 tokens, backup LLM default |
+| Prompt / first message | From `agent_brain.SYSTEM_PROMPT` / `FIRST_MESSAGE`. **Overrides are on for both**, so code sends them on every call; the dashboard copy only matters for dashboard test calls |
+| Dynamic variables | `hotel_name`, `guests`, `check_in`, `check_out`, `nights`, `hotel_notes`, `run_id`, `candidate_rank` (test values set in the dashboard) |
+| Built-in tools | `end_call`, `skip_turn` (silent on hold), `play_keypad_touch_tone` (IVR), `voicemail_detection` (hang up, no message) |
+| Custom tool | `record_availability`, see below |
+| Voice | `eleven_v4_turbo`, streaming latency 3, stability 0.5, speed 1.0 |
+| Turn | Eagerness normal, turn timeout 10 s, silence end-call 90 s, soft timeout off |
+| Max call | 180 s |
+| Limits | Concurrency 4 (bursting on), 300 calls/day |
+| Privacy | Transcripts and audio kept 7 days, zero-retention **off** (transcripts must be fetchable) |
+
+### `record_availability` tool
+- Definition: [`agents/booking_tool.json`](../agents/booking_tool.json). `run_id` and `candidate_rank` come from dynamic variables, so the tool server can tell the 3 parallel calls apart; the other fields come from the LLM.
+- URL `https://aloha-derail-elixir.ngrok-free.dev/record_availability`, header `X-Tool-Secret` = `TOOL_SHARED_SECRET`.
+- **The laptop running the app must run the tunnel** on that domain with the domain owner's ngrok authtoken: `ngrok http --domain=aloha-derail-elixir.ngrok-free.dev 8000` (older ngrok: `--domain`; newer: `--url`). Without it the tool call fails and results come from the transcript fallback only.
+- To recreate it (e.g. new domain or secret), fill the placeholders from `.env`, create it, then attach the returned id to the agent:
+
+```bash
+python -c "import json,config,httpx; b=open('agents/booking_tool.json').read().replace('{PUBLIC_BASE_URL}',config.PUBLIC_BASE_URL).replace('{TOOL_SHARED_SECRET}',config.TOOL_SHARED_SECRET); r=httpx.post(config.ELEVENLABS_BASE_URL+'/v1/convai/tools',headers={'xi-api-key':config.ELEVENLABS_API_KEY},json=json.loads(b)); print(r.status_code, r.json().get('id'))"
+```
+Then in the dashboard (agent → Tools) or via `PATCH /v1/convai/agents/{id}` with `conversation_config.agent.prompt.tool_ids`, attach it and publish to **main**.
+
+### Telephony
+- Twilio paid account, number imported into ElevenLabs and assigned to the agent (`ELEVENLABS_AGENT_PHONE_NUMBER_ID`).
+- **Twilio Geo permissions: Canada must be enabled** (Voice → Settings → Geo permissions). Without it every call to a Canadian number fails with "Account not authorized to call".
+- Test phones are entered in the UI's test-phones box; `USE_MOCK_HOTEL` keeps real runs on our own phones.
