@@ -227,8 +227,11 @@ def test_recipient_falls_back_to_env(monkeypatch):
 def test_body_ends_with_team_signature():
     body = email_service.render_body(email_service.build_payload(mixed_run()))
     assert body.endswith(
-        "\n--\nTeam 15\nisaacoue4@gmail.com\nrichardguo64@gmail.com\n"
-        "zacharygazaille@gmail.com\njordanbouckley@gmail.com\n"
+        "\n--\nTeam 15\n"
+        "Isaac Ouellette - isaacoue4@gmail.com\n"
+        "Richard Guo - richardguo64@gmail.com\n"
+        "Zachary Gazaille - zacharygazaille@gmail.com\n"
+        "Jordan Bouckley - jordanbouckley@gmail.com\n"
     )
 
 

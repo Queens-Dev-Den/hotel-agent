@@ -32,11 +32,11 @@ RESEND_URL = "https://api.resend.com/emails"
 UNKNOWN_STATUS = "Unknown (voicemail / no answer / error)"
 
 
-TEAM_EMAILS = (
-    "isaacoue4@gmail.com",
-    "richardguo64@gmail.com",
-    "zacharygazaille@gmail.com",
-    "jordanbouckley@gmail.com",
+TEAM = (
+    ("Isaac Ouellette", "isaacoue4@gmail.com"),
+    ("Richard Guo", "richardguo64@gmail.com"),
+    ("Zachary Gazaille", "zacharygazaille@gmail.com"),
+    ("Jordan Bouckley", "jordanbouckley@gmail.com"),
 )
 
 
@@ -45,7 +45,7 @@ def subject() -> str:
 
 
 def _signature() -> list[str]:
-    return ["", "--", f"Team {config.TEAM_NO}", *TEAM_EMAILS]
+    return ["", "--", f"Team {config.TEAM_NO}", *(f"{name} - {email}" for name, email in TEAM)]
 
 
 def _status_for(rank: int, run: Run, call: CallResult | None) -> Availability | None:
