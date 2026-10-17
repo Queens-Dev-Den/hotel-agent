@@ -2,6 +2,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 
+import config
 import email_service
 from contracts import (
     Availability,
@@ -14,11 +15,9 @@ from contracts import (
 
 @pytest.fixture(autouse=True)
 def env(monkeypatch):
-    monkeypatch.setenv("TEAM_NO", "15")
-    monkeypatch.setenv("RECEIPT_TO_EMAIL", "me@example.com")
-    monkeypatch.setenv("EMAIL_PROVIDER", "resend")
-    # config.py may not exist yet; make sure the env wins either way
-    monkeypatch.setitem(__import__("sys").modules, "config", None)
+    monkeypatch.setattr(config, "TEAM_NO", "15")
+    monkeypatch.setattr(config, "RECEIPT_TO_EMAIL", "me@example.com")
+    monkeypatch.setattr(config, "EMAIL_PROVIDER", "resend")
 
 
 def cand(rank, name):
@@ -102,7 +101,7 @@ def test_check_rejects_empty_field():
 
 def test_check_rejects_missing_team_no(monkeypatch):
     payload = email_service.build_payload(mixed_run())
-    monkeypatch.setenv("TEAM_NO", "")
+    monkeypatch.setattr(config, "TEAM_NO", "")
     with pytest.raises(ValueError):
         email_service.check_payload(payload)
 
@@ -126,7 +125,7 @@ def test_send_falls_back_to_smtp(monkeypatch):
 
 
 def test_send_smtp_provider_skips_resend(monkeypatch):
-    monkeypatch.setenv("EMAIL_PROVIDER", "smtp")
+    monkeypatch.setattr(config, "EMAIL_PROVIDER", "smtp")
     monkeypatch.setattr(email_service, "_send_resend", lambda *a: pytest.fail("should not be called"))
     monkeypatch.setattr(email_service, "_send_smtp", lambda to, s, b: "<smtp-id>")
     assert email_service.send(mixed_run()).message_id == "<smtp-id>"

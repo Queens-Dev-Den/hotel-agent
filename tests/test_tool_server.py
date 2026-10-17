@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 
+import config
 import tool_server
 from contracts import HotelCandidate, Run
 
@@ -14,8 +15,7 @@ SECRET = "test-secret"
 
 @pytest.fixture()
 def base(monkeypatch):
-    monkeypatch.setenv("TOOL_SHARED_SECRET", SECRET)
-    monkeypatch.setitem(__import__("sys").modules, "config", None)
+    monkeypatch.setattr(config, "TOOL_SHARED_SECRET", SECRET)
     tool_server.reset()
     port = tool_server.start_in_background(0)
     yield f"http://127.0.0.1:{port}"
@@ -60,7 +60,7 @@ def test_bad_secret_rejected(base):
 
 
 def test_no_configured_secret_fails_closed(base, monkeypatch):
-    monkeypatch.setenv("TOOL_SHARED_SECRET", "")
+    monkeypatch.setattr(config, "TOOL_SHARED_SECRET", "")
     assert post(base, payload(), secret="").status_code == 401
 
 

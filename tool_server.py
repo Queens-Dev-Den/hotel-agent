@@ -11,17 +11,15 @@ from __future__ import annotations
 import hmac
 import json
 import logging
-import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from dotenv import load_dotenv
 from pydantic import ValidationError
 
+import config
 import extractor
 from contracts import Availability, HotelCandidate, Run, ToolAvailabilityRequest
 
-load_dotenv()
 log = logging.getLogger(__name__)
 
 MAX_BODY = 64 * 1024
@@ -32,18 +30,6 @@ _lock = threading.Lock()
 _results: dict[tuple[str, int], Availability] = {}
 _expected: dict[str, set[int]] = {}
 _server: ThreadingHTTPServer | None = None
-
-
-def _secret() -> str:
-    try:
-        import config
-
-        value = getattr(config, "TOOL_SHARED_SECRET", None)
-        if value:
-            return str(value)
-    except ImportError:
-        pass
-    return os.environ.get("TOOL_SHARED_SECRET", "").strip()
 
 
 def register_run(run: Run, candidate: HotelCandidate) -> None:
@@ -96,7 +82,7 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path != "/record_availability":
             return self._send(404, {"error": "not found"})
 
-        expected = _secret()
+        expected = config.TOOL_SHARED_SECRET
         given = self.headers.get(SECRET_HEADER, "")
         # Fail closed: with no secret configured nothing is accepted.
         if not expected or not hmac.compare_digest(given.encode(), expected.encode()):
@@ -148,6 +134,6 @@ def stop() -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    bound = start_in_background(int(os.environ.get("TOOL_SERVER_PORT", "8000")))
+    bound = start_in_background(config.TOOL_SERVER_PORT)
     print(f"tool_server listening on 127.0.0.1:{bound}")
     threading.Event().wait()

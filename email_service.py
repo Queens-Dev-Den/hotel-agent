@@ -5,15 +5,13 @@ Plain text only. Resend first, Gmail SMTP fallback.
 from __future__ import annotations
 
 import logging
-import os
 import smtplib
 from datetime import datetime, timezone
 from email.message import EmailMessage
 from email.utils import make_msgid
 
 import httpx
-from dotenv import load_dotenv
-
+import config
 from contracts import (
     Availability,
     CallResult,
@@ -23,28 +21,14 @@ from contracts import (
     Run,
 )
 
-load_dotenv()
 log = logging.getLogger(__name__)
 
 RESEND_URL = "https://api.resend.com/emails"
 UNKNOWN_STATUS = "Unknown (voicemail / no answer / error)"
 
 
-def _setting(name: str, default: str = "") -> str:
-    """config.py is the single source of truth once it exists; .env until then."""
-    try:
-        import config
-
-        value = getattr(config, name, None)
-        if value not in (None, ""):
-            return str(value)
-    except ImportError:
-        pass
-    return os.environ.get(name, default).strip()
-
-
 def subject() -> str:
-    return f"Team # {_setting('TEAM_NO')} - Hotel Reservation Confirmed!"
+    return f"Team # {config.TEAM_NO} - Hotel Reservation Confirmed!"
 
 
 def _status_for(rank: int, run: Run, call: CallResult | None) -> Availability | None:
@@ -80,7 +64,7 @@ def build_payload(run: Run) -> EmailPayload:
         )
 
     return EmailPayload(
-        to=_setting("RECEIPT_TO_EMAIL") or run.request.callback_email,
+        to=config.RECEIPT_TO_EMAIL or run.request.callback_email,
         subject=subject(),
         request=run.request,
         hotels=hotels,
@@ -125,7 +109,7 @@ def check_payload(payload: EmailPayload) -> None:
     """Refuse to send anything that would not count. Raises ValueError."""
     if payload.subject != subject():
         raise ValueError(f"subject mismatch: {payload.subject!r}")
-    if not _setting("TEAM_NO"):
+    if not config.TEAM_NO:
         raise ValueError("TEAM_NO is not set")
     if not payload.to:
         raise ValueError("no recipient (RECEIPT_TO_EMAIL / callback_email)")
@@ -138,14 +122,14 @@ def check_payload(payload: EmailPayload) -> None:
 
 
 def _send_resend(to: str, subj: str, body: str) -> str:
-    key = _setting("RESEND_API_KEY")
+    key = config.RESEND_API_KEY
     if not key:
         raise RuntimeError("RESEND_API_KEY is not set")
     resp = httpx.post(
         RESEND_URL,
         headers={"Authorization": f"Bearer {key}"},
         json={
-            "from": _setting("EMAIL_FROM", "onboarding@resend.dev"),
+            "from": config.EMAIL_FROM,
             "to": [to],
             "subject": subj,
             "text": body,
@@ -157,8 +141,8 @@ def _send_resend(to: str, subj: str, body: str) -> str:
 
 
 def _send_smtp(to: str, subj: str, body: str) -> str:
-    user = _setting("SMTP_USER")
-    password = _setting("SMTP_APP_PASSWORD")
+    user = config.SMTP_USER
+    password = config.SMTP_APP_PASSWORD
     if not (user and password):
         raise RuntimeError("SMTP_USER / SMTP_APP_PASSWORD are not set")
     msg = EmailMessage()
@@ -167,7 +151,7 @@ def _send_smtp(to: str, subj: str, body: str) -> str:
     msg["Subject"] = subj
     msg["Message-ID"] = make_msgid()
     msg.set_content(body)
-    with smtplib.SMTP(_setting("SMTP_HOST", "smtp.gmail.com"), int(_setting("SMTP_PORT", "587")), timeout=15) as s:
+    with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=15) as s:
         s.starttls()
         s.login(user, password)
         s.send_message(msg)
@@ -181,7 +165,7 @@ def send(run: Run) -> EmailReceipt:
     body = render_body(payload)
 
     message_id = None
-    if _setting("EMAIL_PROVIDER", "resend") == "resend":
+    if config.EMAIL_PROVIDER == "resend":
         try:
             message_id = _send_resend(payload.to, payload.subject, body)
         except Exception as exc:
