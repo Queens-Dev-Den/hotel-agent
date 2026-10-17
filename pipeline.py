@@ -21,7 +21,7 @@ from datetime import date, datetime, timedelta, timezone
 import config
 import telemetry
 import tool_server
-from agent_brain import build_call_plan, fallback_extract
+from agent_brain import build_call_plan, fallback_extract, recall_hotel_notes, remember_run
 from contracts import (
     Availability,
     CallPlan,
@@ -169,6 +169,14 @@ def _call_all(plans: list[CallPlan], emit: Emit = _no_emit) -> list[CallResult]:
     return [results[plan.candidate.rank] for plan in plans]
 
 
+def _recall_notes(candidates: list[HotelCandidate]) -> list[str]:
+    """Backboard memory of past calls to each hotel, fetched in parallel. "" when none."""
+    if _mocked("brain") or not candidates:
+        return [""] * len(candidates)
+    with ThreadPoolExecutor(max_workers=len(candidates)) as pool:
+        return list(pool.map(recall_hotel_notes, candidates))
+
+
 @contextmanager
 def _stage(r: Run, name: str, emit: Emit):
     emit("stage_start", {"name": name})
@@ -200,7 +208,9 @@ def run(prompt: str, *, callback_email: str | None = None, on_event: Emit | None
     log.info("search dropped: %s", search_stats)
     emit("candidates", {"candidates": r.candidates})
 
-    plans = [build_call_plan(r.request, c, r.run_id) for c in r.candidates]
+    with _stage(r, "recall", emit):
+        notes = _recall_notes(r.candidates)
+    plans = [build_call_plan(r.request, c, r.run_id, hotel_notes=n) for c, n in zip(r.candidates, notes)]
     if not _mocked("voice"):
         for c in r.candidates:
             tool_server.register_run(r, c)
@@ -213,5 +223,7 @@ def run(prompt: str, *, callback_email: str | None = None, on_event: Emit | None
 
     with _stage(r, "email", emit):
         _send()(r)
+    if not _mocked("brain"):
+        remember_run(r)  # after the email so it never delays the result; never raises
     emit("done", {"run": r})
     return r

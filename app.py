@@ -15,7 +15,13 @@ import streamlit as st
 import config
 import pipeline
 
-STAGES = [("brain", "Read prompt"), ("search", "Find hotels"), ("call", "Call hotels"), ("email", "Send email")]
+STAGES = [
+    ("brain", "Read prompt"),
+    ("search", "Find hotels"),
+    ("recall", "Check past calls"),
+    ("call", "Call hotels"),
+    ("email", "Send email"),
+]
 OUTCOMES = {
     "available": "✅ Available",
     "unavailable": "❌ No room",
@@ -71,6 +77,7 @@ def _render_steps(state: dict) -> None:
     details = {
         "brain": f"{req.city} · {req.check_in:%b %d} → {req.check_out:%b %d} · {req.guests} guest(s)" if req else "",
         "search": f"{len(cands)} callable hotel(s)" if cands is not None else "",
+        "recall": "Backboard memory" if "recall" in state["stages"] else "",
         "call": f"{sum('call' in c for c in state['calls'].values())}/{len(cands)} finished" if cands else "",
         "email": f"sent to {req.callback_email}" if req and state.get("run") else "",
     }
