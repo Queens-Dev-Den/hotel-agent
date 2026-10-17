@@ -13,6 +13,7 @@ import time
 import streamlit as st
 
 import config
+import costs
 import pipeline
 
 STAGES = [
@@ -121,10 +122,70 @@ def _render_calls(state: dict) -> None:
                 status += f" · quoted ${avail.quoted_rate:.0f}"
         a, b, c2, d, e = st.columns([0.4, 3.2, 1, 2, 2.6])
         a.markdown(f"**{c.rank}**")
-        b.markdown(f"**{c.name}**  \n<small>{c.address}</small>", unsafe_allow_html=True)
+        links = _links(c)
+        b.markdown(f"**{c.name}**  \n<small>{c.address}</small>" + (f"  \n{links}" if links else ""),
+                   unsafe_allow_html=True)
         c2.markdown(f"${c.total_price:.0f}")
         d.markdown(f"`{c.phone_e164}`")
         e.markdown(f"{status}  \n<small>{took}</small>", unsafe_allow_html=True)
+
+
+def _links(c) -> str:
+    links = []
+    if c.booking_url:
+        links.append(f"[Book on {c.booking_source or 'booking site'} →]({c.booking_url})")
+    if c.website:
+        links.append(f"[Website]({c.website})")
+    return " · ".join(links)
+
+
+def _verdict(run) -> str:
+    """Plain-English answer built from the results (0 tokens): what to book and why."""
+    req = run.request
+    nights = (req.check_out - req.check_in).days
+    stay = f"{nights} night{'s' * (nights != 1)}, {req.check_in:%b %d} → {req.check_out:%b %d}, {req.guests} guest(s)"
+    answers = {a.candidate_rank: a for a in run.availability}
+    calls = {c.candidate_rank: c for c in run.calls}
+    hotels = sorted(run.candidates, key=lambda c: c.total_price)
+    confirmed = [c for c in hotels if answers.get(c.rank) and answers[c.rank].available]
+
+    lines = []
+    if confirmed:
+        best = confirmed[0]
+        a = answers[best.rank]
+        lines.append(f"### ✅ Book **{best.name}**: ${best.total_price:.0f} {best.currency} for {stay}")
+        said = "They confirmed a room is available on the phone"
+        if a.quoted_rate:
+            online = best.total_price / max(nights, 1)
+            said += f", quoted **${a.quoted_rate:.0f}/night** (online: ${online:.0f}/night)"
+        lines.append(said + ".")
+        if a.reservation_number:
+            lines.append(f"⚠️ The hotel issued reservation **#{a.reservation_number}**, but no booking was "
+                         "intended. Call them to cancel if you don't want it.")
+        links = _links(best)
+        lines.append(f"{links} · 📞 `{best.phone_e164}` · {best.address}" if links else
+                     f"📞 `{best.phone_e164}` · {best.address}")
+        if best is not hotels[0]:
+            lines.append(f"Cheaper online, but not confirmed: {hotels[0].name} (${hotels[0].total_price:.0f}).")
+    else:
+        lines.append(f"### ❔ No hotel confirmed a room for {stay}")
+        lines.append("Cheapest options found online are below. Try calling them directly or book online.")
+
+    others = []
+    for c in hotels:
+        if confirmed and c is confirmed[0]:
+            continue
+        call, a = calls.get(c.rank), answers.get(c.rank)
+        status = OUTCOMES.get(call.outcome, call.outcome) if call else "not called"
+        if a and a.available is None and call and call.outcome in ("available", "unavailable"):
+            status = "❔ Unclear"
+        link = f" · {_links(c)}" if _links(c) else ""
+        others.append(f"- **{c.name}** ${c.total_price:.0f}: {status}{link}")
+    if others:
+        lines.append("**Other hotels called:**\n" + "\n".join(others))
+    if all(c.conversation_id.startswith("mock-") for c in run.calls):
+        lines.append("_Fake calls: these answers are simulated, no hotel was phoned._")
+    return "\n\n".join(lines)
 
 
 def _render_summary(state: dict, started: float) -> None:
@@ -135,11 +196,17 @@ def _render_summary(state: dict, started: float) -> None:
     if run is None:
         st.caption(f"Running… {_fmt_s(time.monotonic() - started)}")
         return
-    tokens = run.telemetry.tokens
-    m1, m2, m3 = st.columns(3)
+    lines = costs.estimate(run)
+    m1, m2, m3, m4 = st.columns(4)
     m1.metric("Total time", _fmt_s(time.monotonic() - started if not state.get("finished") else state["finished"]))
-    m2.metric("Backboard tokens", tokens.get("backboard_in", 0) + tokens.get("backboard_out", 0))
-    m3.metric("Email", "Sent ✓" if run.email else "Not sent")
+    m2.metric("Tokens", f"{costs.total_tokens(run):,}")
+    m3.metric("Est. cost", f"${sum(line.usd for line in lines):.3f}")
+    m4.metric("Email", "Sent ✓" if run.email else "Not sent")
+    with st.expander("Cost and token breakdown"):
+        st.table([{"Item": line.item, "Usage": line.usage, "USD": f"${line.usd:.4f}"} for line in lines])
+        st.caption("List prices in USD (rates in config.py, editable in .env). We're on free tiers, so the "
+                   "actual bill is $0. Call minutes are billed per call, so 3 parallel calls cost 3× even "
+                   "though they take the time of one.")
     with st.expander("Transcripts"):
         for call in run.calls:
             st.markdown(f"**Hotel {call.candidate_rank}** · {call.outcome}")
@@ -171,6 +238,7 @@ with st.form("prompt"):
     email = st.text_input("Send the results to", value=config.RECEIPT_TO_EMAIL, placeholder="you@example.com")
     go = st.form_submit_button("Go", type="primary", use_container_width=True)
 
+verdict_box = st.empty()
 st.subheader("Steps")
 steps_box = st.empty()
 st.subheader("Calls")
@@ -193,6 +261,8 @@ if go and prompt.strip():
             _render_calls(state)
         with summary_box.container():
             _render_summary(state, started)
+        if state.get("run") is not None:
+            verdict_box.container(border=True).markdown(_verdict(state["run"]))
         if not alive:
             break
         time.sleep(POLL_S)
