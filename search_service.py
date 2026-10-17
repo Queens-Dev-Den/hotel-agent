@@ -211,8 +211,17 @@ def pick_city(places: list[dict], props: list[dict]) -> dict | None:
     return min(places, key=lambda pl: (round(km_outside(*mid, pl)), not _rings(pl)))
 
 
+def km_from_downtown(lat: float, lon: float, place: dict) -> float:
+    """Great-circle km from (lat, lon) to the place's centre point (OSM's label point, e.g.
+    Toronto City Hall). For amalgamated cities it can sit a few km off the real downtown."""
+    lat1, lon1, lat2, lon2 = map(math.radians, (lat, lon, float(place["lat"]), float(place["lon"])))
+    a = math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
+    return 6371.0 * 2 * math.asin(math.sqrt(a))
+
+
 def _within_radius(props: list[dict], place: dict | None, stats: dict[str, int]) -> list[dict]:
-    """Keep listings inside the city or within SEARCH_RADIUS_KM of its border."""
+    """Keep listings within SEARCH_RADIUS_KM of the city border (organizer rule) and within
+    SEARCH_DOWNTOWN_KM of downtown (team rule). Each kept listing gets "_downtown_km"."""
     if place is None:
         stats["radius_unchecked"] = 1  # lookup failed: keep everything rather than fail the run
         return props
@@ -223,9 +232,17 @@ def _within_radius(props: list[dict], place: dict | None, stats: dict[str, int])
             stats["no_coords"] = stats.get("no_coords", 0) + 1
         elif km_outside(*c, place) > _radius_km():
             stats["outside_radius"] = stats.get("outside_radius", 0) + 1
+        elif (km := km_from_downtown(*c, place)) > config.SEARCH_DOWNTOWN_KM:
+            stats["far_from_downtown"] = stats.get("far_from_downtown", 0) + 1
         else:
+            prop["_downtown_km"] = round(km, 1)
             kept.append(prop)
     return kept
+
+
+def ranking_cost(price: float, km: float | None, nights: int) -> float:
+    """Total price plus SEARCH_KM_COST per km from downtown per night. Unknown distance adds 0."""
+    return price + config.SEARCH_KM_COST * (km or 0.0) * nights
 
 
 def _is_toll_free(phone_e164: str) -> bool:
@@ -293,7 +310,8 @@ def find_candidates(request: HotelRequest, *, stats: dict[str, int] | None = Non
                     stats["no_price"] = stats.get("no_price", 0) + 1
                     continue
                 priced.append((price, prop, source))
-            priced.sort(key=lambda p: p[0])
+            # Distance counts: a cheap listing far out shouldn't use a lookup slot over a central one
+            priced.sort(key=lambda p: ranking_cost(p[0], p[1].get("_downtown_km"), nights))
             shortlist += priced[:budget]
 
         details = list(pool.map(lambda p: _details(request, p[1], p[2], stats), shortlist))
@@ -319,7 +337,7 @@ def find_candidates(request: HotelRequest, *, stats: dict[str, int] | None = Non
         booking_url, booking_source = best_offer(detail)
         candidates.append((
             _is_toll_free(phone),  # central reservation lines rank after front desks
-            price,
+            ranking_cost(price, prop.get("_downtown_km"), nights),
             HotelCandidate(
                 rank=0,
                 name=prop.get("name") or detail.get("name") or "Unknown",
@@ -331,6 +349,7 @@ def find_candidates(request: HotelRequest, *, stats: dict[str, int] | None = Non
                 booking_url=booking_url,
                 booking_source=booking_source,
                 website=detail.get("link") or None,
+                distance_km=prop.get("_downtown_km"),
             ),
         ))
 
