@@ -143,3 +143,12 @@ def test_nothing_callable_raises(fake_api):
     fake_api["hotels"] = [prop("H1", nightly=100)]
     with pytest.raises(RuntimeError, match="Toronto"):
         find_candidates(REQ)
+
+
+def test_httpx_url_logging_is_off():
+    # SerpApi's key is in the query string; httpx logs URLs at INFO
+    import logging
+
+    import search_service  # noqa: F401
+
+    assert logging.getLogger("httpx").getEffectiveLevel() >= logging.WARNING
