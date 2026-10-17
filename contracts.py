@@ -32,6 +32,7 @@ class HotelCandidate(BaseModel):
     booking_url: str | None = None  # cheapest booking site's link, from search (never used by the call)
     booking_source: str | None = None  # e.g. "Booking.com", or the hotel's own name if official
     website: str | None = None  # the hotel's own site
+    distance_km: float | None = None  # from downtown (the city's centre point), None if unknown
 
 
 class SearchResult(BaseModel):

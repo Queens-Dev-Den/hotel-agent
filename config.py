@@ -42,6 +42,11 @@ HTTP_TIMEOUT_S = _int("HTTP_TIMEOUT_S", 10)
 SEARCH_CACHE = _bool("SEARCH_CACHE", False)
 # Organizer rule: listings must be within this many km of the city border
 SEARCH_RADIUS_KM = _float("SEARCH_RADIUS_KM", 20.0)
+# Team rule: a cheap hotel far from downtown is worse than a slightly pricier central one.
+# Hard cap on distance from downtown (the city's OSM centre point), in km
+SEARCH_DOWNTOWN_KM = _float("SEARCH_DOWNTOWN_KM", 15.0)
+# Ranking cost of distance, in dollars per km per night (0 = rank by price only)
+SEARCH_KM_COST = _float("SEARCH_KM_COST", 2.0)
 
 
 # --- Competition / pipeline (shared) -------------------------------------------
