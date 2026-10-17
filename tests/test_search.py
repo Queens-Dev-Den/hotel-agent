@@ -9,8 +9,16 @@ from search_service import find_candidates, to_e164, total_price
 REQ = HotelRequest(city="Toronto", check_in=date(2026, 10, 18), check_out=date(2026, 10, 20))
 
 
-def prop(name, nightly=None, total=None, token=None):
+# ~20 x 20 km square around downtown Toronto, shaped like a Nominatim result
+TORONTO = {"lat": "43.70", "lon": "-79.40", "geojson": {"type": "Polygon", "coordinates": [[
+    [-79.52, 43.61], [-79.28, 43.61], [-79.28, 43.79], [-79.52, 43.79], [-79.52, 43.61]]]}}
+DOWNTOWN = {"latitude": 43.65, "longitude": -79.38}
+
+
+def prop(name, nightly=None, total=None, token=None, gps=DOWNTOWN):
     p = {"name": name, "property_token": token or name}
+    if gps is not None:
+        p["gps_coordinates"] = gps
     if nightly is not None:
         p["rate_per_night"] = {"extracted_lowest": nightly}
     if total is not None:
@@ -32,6 +40,8 @@ def fake_api(monkeypatch):
         return {"properties": state["rentals"] if params.get("vacation_rentals") else state["hotels"]}
 
     monkeypatch.setattr(search_service, "_serpapi", fake)
+    monkeypatch.setattr(search_service, "_city_places", lambda city: state["places"])
+    state["places"] = [TORONTO]
     return state
 
 
@@ -182,3 +192,54 @@ def test_serpapi_searches_counted_but_not_cache_hits(monkeypatch, tmp_path):
     search_service._serpapi({"q": "x"}, stats)
     search_service._serpapi({"q": "x"}, stats)  # replayed from .cache/
     assert stats == {"serpapi_searches": 1}
+
+
+# --- 20 km of the city border ---------------------------------------------------
+
+def test_km_outside_polygon_inside_edge_and_far():
+    assert search_service.km_outside(43.65, -79.38, TORONTO) == 0.0
+    # 0.1 deg of latitude north of the top edge ~ 11 km
+    assert 10.5 < search_service.km_outside(43.89, -79.40, TORONTO) < 11.6
+    # Gananoque is ~250 km away
+    assert search_service.km_outside(44.33, -76.16, TORONTO) > 200
+
+
+def test_km_outside_point_only_city():
+    town = {"lat": "44.33", "lon": "-76.16", "geojson": {"type": "Point", "coordinates": [-76.16, 44.33]}}
+    assert search_service.km_outside(44.33, -76.16, town) == 0.0
+    assert 6 < search_service.km_outside(44.42, -76.16, town) < 8  # 10 km away minus the 3 km town radius
+
+
+def test_pick_city_uses_the_one_near_the_listings():
+    jamaica = {"lat": "17.97", "lon": "-76.79", "geojson": {"type": "Point", "coordinates": [-76.79, 17.97]}}
+    near_point = {"lat": "43.70", "lon": "-79.40", "geojson": {"type": "Point", "coordinates": [-79.40, 43.70]}}
+    props = [prop("a"), prop("b")]
+    assert search_service.pick_city([jamaica, near_point, TORONTO], props) is TORONTO  # boundary beats point
+    assert search_service.pick_city([], props) is None
+
+
+def test_radius_drops_far_and_coordless_listings(fake_api):
+    fake_api["hotels"] = [
+        prop("far", nightly=40, gps={"latitude": 44.33, "longitude": -76.16}),  # Gananoque
+        prop("nogps", nightly=45, gps=None),
+        prop("edge", nightly=50, gps={"latitude": 43.85, "longitude": -79.40}),  # ~7 km past the border
+        prop("in", nightly=60),
+    ]
+    for name in ("far", "nogps", "edge", "in"):
+        fake_api["details"][name] = {"phone": f"416-555-01{len(name):02d}", "address": "1 King St"}
+    stats = {}
+
+    out = find_candidates(REQ, stats=stats)
+
+    assert [c.name for c in out] == ["edge", "in"]
+    assert stats["outside_radius"] == 1 and stats["no_coords"] == 1
+
+
+def test_radius_lookup_failure_keeps_listings(fake_api):
+    fake_api["places"] = []
+    fake_api["hotels"] = [prop("H1", nightly=100, gps={"latitude": 44.33, "longitude": -76.16})]
+    fake_api["details"]["H1"] = {"phone": "416-555-0100", "address": "1 King St"}
+    stats = {}
+
+    assert [c.name for c in find_candidates(REQ, stats=stats)] == ["H1"]
+    assert stats["radius_unchecked"] == 1
