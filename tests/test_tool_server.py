@@ -131,3 +131,78 @@ def test_register_run_and_unregistered_results_still_stored(base):
 
 def test_start_is_idempotent(base):
     assert tool_server.start_in_background(0) == int(base.rsplit(":", 1)[1])
+
+
+# --- resolve_availability -----------------------------------------------------
+
+from contracts import Availability, CallResult, HotelRequest  # noqa: E402
+from datetime import date  # noqa: E402
+
+
+def make_run(transcripts: dict[int, str | None]) -> Run:
+    cands = [HotelCandidate(rank=r, name=f"H{r}", address="a", phone_e164=f"+141655500{r}0", total_price=r * 100.0, source="t")
+             for r in transcripts]
+    calls = [CallResult(candidate_rank=r, conversation_id=f"c{r}", outcome="available", duration_s=1, transcript=t)
+             for r, t in transcripts.items()]
+    return Run(run_id="r1", prompt="p", started_at=datetime.now(timezone.utc),
+               request=HotelRequest(city="T", check_in=date(2026, 11, 1), check_out=date(2026, 11, 2)),
+               candidates=cands, calls=calls)
+
+
+SOLD = "Agent: Hi\nHotel: Sorry, we're sold out."
+YES = "Agent: Hi\nHotel: Yes, we have a room at $189."
+FUZZY = "Agent: Hi\nHotel: Hmm, let me ask my manager."
+
+
+def test_resolve_prefers_tool_over_transcript(base):
+    post(base, payload(1, available=True, quoted_rate="$150"))
+    run = make_run({1: SOLD})  # transcript disagrees; the tool result wins
+    got = tool_server.resolve_availability(run)
+    assert got[0].available is True and got[0].source == "tool" and run.availability == got
+
+
+def test_resolve_uses_regex_when_tool_missing(base):
+    run = make_run({1: YES, 2: SOLD})
+    got = tool_server.resolve_availability(run)
+    assert [(a.candidate_rank, a.available, a.source) for a in got] == [(1, True, "transcript"), (2, False, "transcript")]
+    assert got[0].quoted_rate == 189.0
+
+
+def test_resolve_calls_fallback_only_when_regex_unsure(base):
+    calls = []
+
+    def fallback(transcript, rank, *, usage=None):
+        calls.append(rank)
+        return Availability(candidate_rank=rank, available=True, quoted_rate=99.0, source="backboard")
+
+    run = make_run({1: YES, 2: FUZZY})
+    got = tool_server.resolve_availability(run, fallback)
+    assert calls == [2] and got[1].source == "backboard"
+
+
+def test_resolve_fallback_none_or_error_means_unknown(base):
+    run = make_run({1: FUZZY, 2: FUZZY})
+
+    def boom(*a, **k):
+        raise RuntimeError("backboard down")
+
+    assert tool_server.resolve_availability(run, lambda *a, **k: None)[0].available is None
+    assert tool_server.resolve_availability(run, boom)[1].available is None
+
+
+def test_resolve_no_transcript_never_calls_fallback(base):
+    run = make_run({1: None})
+    got = tool_server.resolve_availability(run, lambda *a, **k: pytest.fail("no tokens for empty transcripts"))
+    assert got[0].available is None
+
+
+def test_resolve_keeps_call_result_availability(base):
+    run = make_run({1: FUZZY})
+    run.calls[0].availability = Availability(candidate_rank=1, available=False, source="tool")
+    assert tool_server.resolve_availability(run)[0].available is False
+
+
+def test_resolve_fills_volunteered_reservation_number(base):
+    post(base, payload(1))
+    run = make_run({1: YES + "\nHotel: Your reservation number is HX4729."})
+    assert tool_server.resolve_availability(run)[0].reservation_number == "HX4729"

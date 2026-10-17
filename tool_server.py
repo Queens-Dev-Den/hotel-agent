@@ -12,6 +12,7 @@ import hmac
 import json
 import logging
 import threading
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from pydantic import ValidationError
@@ -42,6 +43,48 @@ def results_for(run_id: str) -> dict[int, Availability]:
     """Stored results for a run, keyed by candidate_rank."""
     with _lock:
         return {rank: a for (rid, rank), a in _results.items() if rid == run_id}
+
+
+Fallback = Callable[..., Availability | None]  # agent_brain.fallback_extract(transcript, rank, usage=...)
+
+
+def resolve_availability(run: Run, fallback: Fallback | None = None, usage: dict[str, int] | None = None) -> list[Availability]:
+    """Final availability per candidate, written to run.availability (ordered by rank).
+
+    Order of trust, stopping at the first definite answer (available is True/False):
+    tool result -> the CallResult's own availability -> transcript regex -> `fallback`
+    (Backboard, tokens only spent here). Otherwise the hotel is reported as unknown.
+    """
+    tool_results = results_for(run.run_id)
+    calls = {c.candidate_rank: c for c in run.calls}
+    resolved: list[Availability] = []
+
+    for cand in sorted(run.candidates, key=lambda c: c.rank):
+        call = calls.get(cand.rank)
+        transcript = call.transcript if call else None
+        regex = extractor.from_transcript(transcript, cand.rank)
+
+        answer = tool_results.get(cand.rank)
+        if answer is None and call and call.availability and call.availability.available is not None:
+            answer = call.availability
+        if answer is None and regex.available is not None:
+            answer = regex
+        if answer is None and fallback and transcript and transcript.strip():
+            try:
+                answer = fallback(transcript, cand.rank, usage=usage)
+            except Exception:
+                log.exception("fallback extraction failed for candidate %s", cand.rank)
+            if answer is not None and answer.available is None:
+                answer = None
+        if answer is None:
+            answer = regex  # available=None -> reported as unknown
+
+        if answer.reservation_number is None and regex.reservation_number:
+            answer = answer.model_copy(update={"reservation_number": regex.reservation_number})
+        resolved.append(answer)
+
+    run.availability = resolved
+    return resolved
 
 
 def record(payload: ToolAvailabilityRequest) -> Availability:
