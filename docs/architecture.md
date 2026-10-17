@@ -2,7 +2,7 @@
 
 **Owner:** Lead · **Status:** locked at 10:30, changes need all four teammates to agree
 
-**Target:** one prompt in → one email out, in **under 4 minutes**. The email lists whether each of the top 3 hotels has a room for the requested dates and includes the **full transcript of every call**. We **never book**: the agent only asks whether a room is available.
+**Target:** one prompt in → one email out, in **under 4 minutes**. The email highlights the **cheapest hotel that has a room** for the requested dates, with the **full transcript of that call**, and lists the other hotels we called in one line each. We **never book**: the agent only asks whether a room is available.
 
 Backboard runs before and after the calls. ElevenLabs runs the live calls, **all three at the same time**. The email goes out once, when the last call has ended and its transcript is in.
 
@@ -20,7 +20,7 @@ Prompt ──► search_service.py ──► agent_brain.py ──► voice_agen
                                                               │
               extractor.py + agent_brain.py fallback if a tool never fired
                                                               │
-                                  email_service.py ──► ONE email: 3 results + 3 transcripts
+                                  email_service.py ──► ONE email: cheapest available + its transcript, others in 1 line
                                                               │
                                       telemetry.py tokens + stage times
 ```
@@ -61,7 +61,7 @@ Defined in `telemetry.py` and serialized to `run_telemetry.json`. Each module wr
 
 - **Hotel name, address and phone in the email come from `candidates[]`**, not from the call.
 - **Availability comes from the call** (`availability[]`). If a call produced no answer (voicemail, no answer, error), the email says so for that hotel instead of guessing.
-- **Transcripts are included verbatim**, one section per hotel, labelled by speaker. They are saved in `calls[].transcript` and in `run_telemetry.json`.
+- **The email highlights the cheapest available hotel** (lowest quoted rate among hotels that said yes; search-price order when there's no quote; the cheapest hotel overall if none said yes). Only **its** transcript is included, verbatim. Every transcript is still saved in `calls[].transcript` and `run_telemetry.json`. The other hotels get one line each: status and rate.
 - `stage_ms.call` is the wall-clock time of the slowest call, since the calls overlap.
 - `tokens.agent_llm` is the sum across the 3 calls.
 - The subject is built from one constant in `config.py`, `Team # {TEAM_NO} - Hotel Reservation Confirmed!`, and checked against the exact required string before sending. See the open question about whether that string still applies now that we don't book.

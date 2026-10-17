@@ -42,7 +42,8 @@ def test_three_parallel_tool_calls_then_one_email(server, monkeypatch):
     assert len(sent) == 1 and receipt.message_id == "mid-1" and run.email is receipt
     to, subject, body = sent[0]
     assert to == "me@example.com" and subject == "Team # 15 - Hotel Reservation Confirmed!"
+    assert "=== Cheapest available hotel ===" in body
     assert "Availability: Available\nQuoted Rate: $189.00" in body
-    assert "Availability: Not available" in body
-    assert "Availability: Unknown (voicemail / no answer / error)" in body
-    assert "No transcript: available" in body  # make_run outcome for the empty transcript
+    assert "Hotel: Yes, $189." in body and body.count("Transcript:") == 1
+    assert ": Not available, rate not given" in body
+    assert ": Unknown (voicemail / no answer / error), rate not given" in body

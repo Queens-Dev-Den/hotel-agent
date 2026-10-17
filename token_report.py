@@ -18,7 +18,7 @@ from contracts import Run
 
 RUN_FILE = Path("run_telemetry.json")  # written by telemetry.py (WS1)
 ARCHIVE = Path("telemetry_runs")
-STAGES = ["brain", "search", "call", "email"]
+STAGES = ["brain", "search", "recall", "call", "email"]
 TOKENS = ["backboard_parse", "backboard_extract", "backboard_total", "agent_llm"]
 
 

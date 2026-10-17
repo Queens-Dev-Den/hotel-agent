@@ -65,15 +65,22 @@ def _mock_find_candidates(request: HotelRequest, *, stats=None) -> list[HotelCan
 
 
 def _mock_place_call(plan: CallPlan) -> CallResult:
+    """No phone call: quotes the hotel's nightly price from the online search instead."""
     rank = plan.candidate.rank
+    nights = max(int(plan.dynamic_vars.get("nights", "1") or 1), 1)
+    rate = round(plan.candidate.total_price / nights, 2)
     time.sleep(MOCK_CALL_DELAY_S)
     return CallResult(
         candidate_rank=rank,
         conversation_id=f"mock-{plan.run_id}-{rank}",
         outcome="available",
         duration_s=MOCK_CALL_DELAY_S,
-        availability=Availability(candidate_rank=rank, available=True, quoted_rate=99.0, source="tool"),
-        transcript="Agent: Hi, I'm calling to check room availability please.\nHotel: Yes, we have a room.",
+        availability=Availability(candidate_rank=rank, available=True, quoted_rate=rate, source="tool",
+                                  notes="Fake call: rate is the online search price"),
+        transcript=(
+            "Agent: Hi, I'm calling to check room availability please.\n"
+            f"Hotel: (fake call, no phone call made) Yes, we have a room at ${rate:g} a night."
+        ),
     )
 
 

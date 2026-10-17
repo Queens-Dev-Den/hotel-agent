@@ -61,20 +61,47 @@ def test_hotels_sorted_cheapest_first():
 def test_body_mixed_outcomes():
     body = email_service.render_body(email_service.build_payload(mixed_run()))
     assert body.startswith("Check-in: 2026-11-01\nCheck-out: 2026-11-03\nGuests: 2\n")
-    assert "--- Hotel 1 of 3 ---\nHotel Name: Alpha\nAddress: 1 King St, Toronto\nPhone: +14165550001\n" in body
-    assert "Availability: Available\nQuoted Rate: $189.00" in body
-    assert "Availability: Not available\nQuoted Rate: not given" in body
-    assert "Availability: Unknown (voicemail / no answer / error)" in body
+    assert "We called the 3 cheapest hotels we found for these dates. Here is the cheapest one with a room available." in body
+    assert (
+        "=== Cheapest available hotel ===\nHotel Name: Alpha\nAddress: 1 King St, Toronto\nPhone: +14165550001\n"
+        "Availability: Available\nQuoted Rate: $189.00\n"
+    ) in body
     assert "Hotel: Yes, $189 a night." in body
-    assert "No transcript: voicemail" in body
+    assert "=== Other hotels we called ===" in body
+    assert "2. Beta, +14165550002: Not available, rate not given" in body
+    assert "3. Gamma, +14165550003: Unknown (voicemail / no answer / error), rate not given" in body
+
+
+def test_only_highlighted_transcript_included():
+    body = email_service.render_body(email_service.build_payload(mixed_run()))
+    assert body.count("Transcript:") == 1
+    assert "Sorry, sold out." not in body
+    assert "No transcript: voicemail" not in body
+
+
+def test_highlights_cheapest_quote_among_available():
+    run = mixed_run()
+    run.calls[1].transcript = "Agent: Hi.\nHotel: Yes, $120 a night."
+    run.availability[1] = Availability(candidate_rank=2, available=True, quoted_rate=120.0, source="tool")
+    body = email_service.render_body(email_service.build_payload(run))
+    assert "=== Cheapest available hotel ===\nHotel Name: Beta" in body
+    assert "Hotel: Yes, $120 a night." in body and "$189 a night" not in body
+    assert "1. Alpha, +14165550001: Available, rate $189.00" in body
+
+
+def test_none_available_highlights_cheapest_called():
+    run = mixed_run()
+    run.availability[0] = Availability(candidate_rank=1, available=False, source="tool")
+    body = email_service.render_body(email_service.build_payload(run))
+    assert "None of them confirmed a room, so here is the cheapest one we called." in body
+    assert "=== Cheapest hotel (no room confirmed) ===\nHotel Name: Alpha" in body
 
 
 def test_missing_call_still_reported():
     run = mixed_run()
     run.calls = run.calls[:1]
     body = email_service.render_body(email_service.build_payload(run))
-    assert "No transcript: not called" in body
-    assert "Hotel Name: Gamma" in body
+    assert "3. Gamma, +14165550003: Unknown (voicemail / no answer / error)" in body
 
 
 def test_availability_falls_back_to_call_result():
@@ -144,6 +171,13 @@ def test_reservation_number_triggers_cancel_warning():
     body = email_service.render_body(email_service.build_payload(run))
     assert "WARNING: Hotel issued reservation # HX4729. No booking was intended, please cancel it." in body
     assert body.count("WARNING") == 1
+
+
+def test_cancel_warning_shown_for_non_highlighted_hotel():
+    run = mixed_run()
+    run.availability[1].reservation_number = "ZZ1"
+    body = email_service.render_body(email_service.build_payload(run))
+    assert "2. Beta" in body and "WARNING: Hotel issued reservation # ZZ1." in body
 
 
 def test_no_warning_without_reservation_number():
