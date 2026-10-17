@@ -228,3 +228,19 @@ def test_test_mode_without_numbers_stops_before_calling(monkeypatch):
     with pytest.raises(RuntimeError, match="Refusing to dial real hotels"):
         pipeline.run("x")
     assert dialed == []
+
+
+def test_outcome_follows_the_resolved_answer():
+    from datetime import datetime, timezone
+
+    from contracts import Availability, CallResult, Run
+
+    r = Run(run_id="r", prompt="p", started_at=datetime.now(timezone.utc),
+            calls=[CallResult(candidate_rank=1, conversation_id="c1", outcome="unavailable", duration_s=30),
+                   CallResult(candidate_rank=2, conversation_id="c2", outcome="voicemail", duration_s=10),
+                   CallResult(candidate_rank=3, conversation_id="c3", outcome="unavailable", duration_s=20)],
+            availability=[Availability(candidate_rank=1, available=True, quoted_rate=50.0, source="backboard"),
+                          Availability(candidate_rank=2, available=True, source="backboard"),
+                          Availability(candidate_rank=3, available=None, source="transcript")])
+    pipeline._sync_outcomes(r)
+    assert [c.outcome for c in r.calls] == ["available", "voicemail", "unavailable"]

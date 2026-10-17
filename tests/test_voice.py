@@ -17,7 +17,8 @@ CONV_ID = "conv_test"
 def _conversation(status="done", turns=(), tool_calls=(), duration=42, reason=None):
     transcript = [{"role": role, "message": msg, "time_in_call_secs": i} for i, (role, msg) in enumerate(turns)]
     if tool_calls:
-        transcript.append({"role": "agent", "message": "", "tool_calls": [{"tool_name": n} for n in tool_calls]})
+        transcript.append({"role": "agent", "message": "", "tool_calls": [
+            n if isinstance(n, dict) else {"tool_name": n} for n in tool_calls]})
     return {
         "conversation_id": CONV_ID,
         "status": status,
@@ -159,3 +160,35 @@ def test_multiline_message_stays_on_one_line():
 def test_conversation_details(fake_api):
     fake_api["gets"] = [_conversation(turns=HOTEL_YES)]
     assert voice_agent.conversation_details(CONV_ID)["conversation_id"] == CONV_ID
+
+
+# The first real run: the tool's HTTP request went to a teammate's tunnel, and the regex
+# missed "the cheapest one I have is $50", so the call was tagged "no room".
+CHEAPEST_50 = [("agent", "Hi, what's the cheapest room you have?"),
+               ("user", "Um, the cheapest one I have is $50 per night."),
+               ("agent", "Great, so that's fifty dollars per night, is that right?"), ("user", "Yes.")]
+TOOL_50 = {"tool_name": "record_availability",
+           "params_as_json": '{"available": true, "quoted_rate": "$50", "notes": "lowest rate"}'}
+
+
+def test_tool_call_in_conversation_used_when_tool_server_missed_it(fake_api):
+    fake_api["gets"] = [_conversation(turns=CHEAPEST_50, tool_calls=[TOOL_50, "end_call"])]
+    result = voice_agent.place_call(PLAN)
+    assert_valid_call_result(PLAN, result)
+    assert result.outcome == "available"
+    assert result.availability.available is True and result.availability.quoted_rate == 50.0
+    assert result.availability.source == "tool"
+
+
+def test_tool_server_result_still_wins_over_conversation(fake_api):
+    tool_server.record(ToolAvailabilityRequest(run_id=PLAN.run_id, candidate_rank=PLAN.candidate.rank,
+                                               available=False, notes="sold out"))
+    fake_api["gets"] = [_conversation(turns=CHEAPEST_50, tool_calls=[TOOL_50])]
+    assert voice_agent.place_call(PLAN).outcome == "unavailable"
+
+
+def test_bad_tool_call_params_fall_back_to_transcript(fake_api):
+    bad = {"tool_name": "record_availability", "params_as_json": "not json"}
+    fake_api["gets"] = [_conversation(turns=HOTEL_YES, tool_calls=[bad])]
+    result = voice_agent.place_call(PLAN)
+    assert result.outcome == "available" and result.availability.source == "transcript"

@@ -192,6 +192,16 @@ def _real_calls() -> bool:
     return not _mocked("voice") and not _mocked("brain") and not config.USE_MOCK_HOTEL
 
 
+def _sync_outcomes(r: Run) -> None:
+    """A person answered and a later fallback found a definite answer: make the call's outcome
+    match it, so the UI tag never says "no room" next to a quoted rate."""
+    resolved = {a.candidate_rank: a for a in r.availability}
+    for call in r.calls:
+        answer = resolved.get(call.candidate_rank)
+        if call.outcome in ("available", "unavailable") and answer and answer.available is not None:
+            call.outcome = "available" if answer.available else "unavailable"
+
+
 def _recall_notes(candidates: list[HotelCandidate]) -> list[str]:
     """Backboard memory of past calls to each hotel, fetched in parallel. "" when none."""
     if _mocked("brain") or not candidates:
@@ -265,6 +275,7 @@ def run(prompt: str, *, callback_email: str | None = None, on_event: Emit | None
 
     # tool result -> call's own answer -> transcript regex -> Backboard (WS4)
     tool_server.resolve_availability(r, fallback=fallback_extract, usage=r.telemetry.tokens)
+    _sync_outcomes(r)
     emit("tokens", {"tokens": dict(r.telemetry.tokens)})
 
     with _stage(r, "email", emit):

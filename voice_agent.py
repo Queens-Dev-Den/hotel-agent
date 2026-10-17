@@ -6,6 +6,7 @@ nothing here is shared between calls except read-only config.
 """
 from __future__ import annotations
 
+import json
 import logging
 import time
 
@@ -13,7 +14,7 @@ import httpx
 
 import config
 import extractor
-from contracts import Availability, CallPlan, CallResult
+from contracts import Availability, CallPlan, CallResult, ToolAvailabilityRequest
 
 log = logging.getLogger(__name__)
 
@@ -150,6 +151,27 @@ def _tool_result(plan: CallPlan) -> Availability | None:
     return tool_server.results_for(plan.run_id).get(plan.candidate.rank)
 
 
+def _tool_call_answer(plan: CallPlan, conversation: dict) -> Availability | None:
+    """The agent's last record_availability call, read from the conversation record itself.
+    Works even when the tool's HTTP request went to someone else's tunnel."""
+    for turn in reversed(conversation.get("transcript") or []):
+        for call in reversed(turn.get("tool_calls") or []):
+            if call.get("tool_name") != "record_availability":
+                continue
+            try:
+                params = json.loads(call.get("params_as_json") or "{}")
+                if params.get("available") is None:
+                    continue
+                return extractor.validate(ToolAvailabilityRequest(
+                    run_id=plan.run_id, candidate_rank=plan.candidate.rank,
+                    available=params["available"], quoted_rate=params.get("quoted_rate"),
+                    reservation_number=params.get("reservation_number"), notes=params.get("notes") or "",
+                ))
+            except (ValueError, TypeError):
+                continue
+    return None
+
+
 def _to_result(plan: CallPlan, conversation_id: str, conversation: dict, elapsed_s: float) -> CallResult:
     rank = plan.candidate.rank
     transcript = format_transcript(conversation)
@@ -163,7 +185,8 @@ def _to_result(plan: CallPlan, conversation_id: str, conversation: dict, elapsed
     elif not _hotel_spoke(conversation):
         outcome = "no_answer"
     else:
-        availability = _tool_result(plan)
+        # tool server (if the tunnel points here) -> the tool call in the conversation -> transcript regex
+        availability = _tool_result(plan) or _tool_call_answer(plan, conversation)
         if availability is None or availability.available is None:
             availability = extractor.from_transcript(transcript, rank)
         # A person answered: anything short of a clear "yes" is reported as unavailable,
