@@ -27,22 +27,27 @@ STAGES = [
 ]
 POLL_S = 0.25
 
-# Lucide icons (stroke, 24x24). SVG, not emoji: consistent across OSes and themeable.
+# Lucide icons (lucide.dev, ISC licence): official SVG bodies, 24x24 stroke. SVG, not emoji.
 ICONS = {
-    "clock": '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
-    "phone": '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
-    "check": '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
-    "x": '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
-    "voicemail": '<circle cx="5.5" cy="11.5" r="4.5"/><circle cx="18.5" cy="11.5" r="4.5"/><line x1="5.5" y1="16" x2="18.5" y2="16"/>',
-    "missed": '<line x1="23" y1="1" x2="17" y2="7"/><line x1="17" y1="1" x2="23" y2="7"/><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
-    "alert": '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
-    "help": '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
-    "link": '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
-    "hotel": '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01"/>',
-    "search": '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
-    "mail": '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>',
-    "cpu": '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/>',
-    "receipt": '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6M16 12h-6M13 16h-3"/>',
+    "clock": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 6v6l4 2\"/>",
+    "phone": "<path d=\"M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384\"/>",
+    "check": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m16 9-5.5 5.5L8 12\"/>",
+    "x": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m15 9-6 6\"/><path d=\"m9 9 6 6\"/>",
+    "voicemail": "<circle cx=\"6\" cy=\"12\" r=\"4\"/><circle cx=\"18\" cy=\"12\" r=\"4\"/><line x1=\"6\" x2=\"18\" y1=\"16\" y2=\"16\"/>",
+    "missed": "<path d=\"m16 2 6 6\"/><path d=\"m22 2-6 6\"/><path d=\"M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384\"/>",
+    "alert": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/>",
+    "help": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3\"/><path d=\"M12 17h.01\"/>",
+    "link": "<path d=\"M15 3h6v6\"/><path d=\"M10 14 21 3\"/><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\"/>",
+    "hotel": "<path d=\"M10 22v-6.57\"/><path d=\"M12 11h.01\"/><path d=\"M12 7h.01\"/><path d=\"M14 15.43V22\"/><path d=\"M15 16a5 5 0 0 0-6 0\"/><path d=\"M16 11h.01\"/><path d=\"M16 7h.01\"/><path d=\"M8 11h.01\"/><path d=\"M8 7h.01\"/><rect x=\"4\" y=\"2\" width=\"16\" height=\"20\" rx=\"2\"/>",
+    "search": "<path d=\"m21 21-4.34-4.34\"/><circle cx=\"11\" cy=\"11\" r=\"8\"/>",
+    "mail": "<path d=\"m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7\"/><rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/>",
+    "cpu": "<path d=\"M12 20v2\"/><path d=\"M12 2v2\"/><path d=\"M17 20v2\"/><path d=\"M17 2v2\"/><path d=\"M2 12h2\"/><path d=\"M2 17h2\"/><path d=\"M2 7h2\"/><path d=\"M20 12h2\"/><path d=\"M20 17h2\"/><path d=\"M20 7h2\"/><path d=\"M7 20v2\"/><path d=\"M7 2v2\"/><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><rect x=\"8\" y=\"8\" width=\"8\" height=\"8\" rx=\"1\"/>",
+    "receipt": "<path d=\"M12 17V7\"/><path d=\"M16 8h-6a2 2 0 0 0 0 4h4a2 2 0 0 1 0 4H8\"/><path d=\"M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z\"/>",
+    "sparkles": "<path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z\"/><path d=\"M20 2v4\"/><path d=\"M22 4h-4\"/><circle cx=\"4\" cy=\"20\" r=\"2\"/>",
+    "pin": "<path d=\"M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0\"/><circle cx=\"12\" cy=\"10\" r=\"3\"/>",
+    "flask": "<path d=\"M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2\"/><path d=\"M6.453 15h11.094\"/><path d=\"M8.5 2h7\"/>",
+    "phonecall": "<path d=\"M13 2a9 9 0 0 1 9 9\"/><path d=\"M13 6a5 5 0 0 1 5 5\"/><path d=\"M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384\"/>",
+    "settings": "<path d=\"M14 17H5\"/><path d=\"M19 7h-9\"/><circle cx=\"17\" cy=\"17\" r=\"3\"/><circle cx=\"7\" cy=\"7\" r=\"3\"/>",
 }
 
 # status key -> (label, icon). Every status has an icon AND a label: never colour alone.
@@ -59,127 +64,178 @@ STATUS = {
 
 CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@500;600&display=swap');
 :root {
-  --glass: rgba(255,255,255,0.07); --glass-2: rgba(255,255,255,0.11); --glass-border: rgba(255,255,255,0.16);
-  --text: #F8FAFC; --muted: #B4BED3; --primary: #8B5CF6; --primary-2: #EC4899; --on-primary: #FFFFFF;
-  --live: #22D3EE; --ok: #34D399; --bad: #FB7185; --warn: #FBBF24; --idle: #94A3B8;
-  --blur: blur(18px) saturate(150%); --shadow: 0 8px 32px rgba(8, 6, 30, 0.45);
+  /* type scale (1.25) and radii: one set for the whole page */
+  --fs-xs: .8125rem; --fs-sm: .875rem; --fs-md: 1rem; --fs-lg: 1.125rem; --fs-xl: 1.375rem; --fs-2xl: 1.75rem; --fs-3xl: 2.375rem;
+  --r-sm: 10px; --r-md: 16px; --r-lg: 22px;
+  --text: #FFFFFF; --muted: #C9D1E4; --faint: #9AA6C2;
+  --primary: #8B5CF6; --primary-2: #EC4899; --live: #22D3EE; --ok: #34D399; --bad: #FB7185; --warn: #FBBF24; --idle: #A5B0C9;
+  /* glass: light, see-through gradient + strong blur + bright rim */
+  --glass-bg: linear-gradient(135deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.05) 100%);
+  --glass-rim: rgba(255,255,255,.26);
+  --glass-blur: blur(26px) saturate(180%);
+  --glass-shadow: 0 10px 40px rgba(6,4,24,.45), inset 0 1px 0 rgba(255,255,255,.45), inset 0 -1px 0 rgba(255,255,255,.06);
 }
-html, body, [class*="st-"] { font-family: 'Inter', system-ui, sans-serif; }
 
-/* backdrop: deep violet -> navy with soft colour glows for the glass to blur */
-.stApp {
-  background:
-    radial-gradient(900px 600px at 10% 5%, rgba(139,92,246,.35), transparent 60%),
-    radial-gradient(800px 600px at 95% 15%, rgba(236,72,153,.22), transparent 60%),
-    radial-gradient(900px 700px at 50% 110%, rgba(34,211,238,.18), transparent 60%),
-    linear-gradient(160deg, #140B2E 0%, #0B1026 55%, #070B1A 100%);
-  background-attachment: fixed;
+/* one font everywhere, except Streamlit's icon font (it draws the sidebar arrows) and code */
+.stApp, .stApp *:not([data-testid="stIconMaterial"]):not(.mono):not(code):not(pre):not(pre *) {
+  font-family: 'Inter', system-ui, sans-serif;
 }
-header[data-testid="stHeader"] { background: transparent; }
-section[data-testid="stSidebar"] > div { background: rgba(12, 10, 32, 0.55); backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur); border-right: 1px solid var(--glass-border); }
-.block-container { max-width: 1280px; padding-top: 2rem; }
-.mono { font-family: 'Fira Code', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
-.ic { width: 1.1em; height: 1.1em; vertical-align: -0.18em; fill: none; stroke: currentColor;
+[data-testid="stIconMaterial"] { font-family: 'Material Symbols Rounded' !important; }
+.mono, .stApp code, .stApp pre, .stApp pre * { font-family: 'Fira Code', ui-monospace, monospace !important;
+  font-variant-numeric: tabular-nums; }
+.ic { width: 1.15em; height: 1.15em; vertical-align: -0.2em; fill: none; stroke: currentColor;
       stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 
-/* shared glass surface */
-.glass, .step, .card, .hero, .metric, .empty {
-  background: var(--glass); border: 1px solid var(--glass-border); box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.08);
-  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+/* backdrop: bright colour orbs drifting behind everything, so the glass has something to blur */
+.stApp { background: #0A0820; }
+.stApp::before {
+  content: ""; position: fixed; inset: -20%; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(28% 32% at 18% 22%, rgba(139,92,246,.85), transparent 70%),
+    radial-gradient(24% 30% at 82% 18%, rgba(236,72,153,.70), transparent 70%),
+    radial-gradient(30% 34% at 70% 78%, rgba(34,211,238,.55), transparent 70%),
+    radial-gradient(22% 26% at 25% 85%, rgba(251,191,36,.35), transparent 70%),
+    linear-gradient(160deg, #1A0F45 0%, #0D0B2B 55%, #070616 100%);
 }
+[data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stBottomBlockContainer"] { background: transparent !important; }
+[data-testid="stAppViewContainer"] > * { position: relative; z-index: 1; }
+header[data-testid="stHeader"] { background: transparent; }
+.block-container { max-width: 1320px; padding-top: 2.25rem; }
 
-.hdr { display: flex; align-items: center; gap: .75rem; margin-bottom: .25rem; }
-.hdr h1 { font-size: 2rem; font-weight: 700; margin: 0; letter-spacing: -0.02em;
-  background: linear-gradient(90deg, #FFFFFF 0%, #DDD6FE 60%, #FBCFE8 100%); -webkit-background-clip: text;
+/* shared glass surface (+ a soft sheen across the top-left) */
+.glass, .step, .card, .hero, .metric, .empty, .side-intro {
+  position: relative; background: var(--glass-bg); border: 1px solid var(--glass-rim);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: var(--glass-shadow);
+  overflow: hidden;
+}
+.card::before, .hero::before, .side-intro::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(120deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,0) 38%);
+}
+.card > *, .hero > *, .side-intro > * { position: relative; }
+.card, .hero, .metric, .step { text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+
+/* header */
+.hdr { display: flex; align-items: center; gap: .8rem; }
+.hdr h1 { font-size: var(--fs-3xl); font-weight: 800; margin: 0; letter-spacing: -0.025em; line-height: 1.1;
+  background: linear-gradient(90deg, #FFFFFF 0%, #E9D5FF 55%, #FBCFE8 100%); -webkit-background-clip: text;
   background-clip: text; color: transparent; }
-.hdr .ic { width: 2.1rem; height: 2.1rem; color: #C4B5FD; }
-.sub { color: var(--muted); font-size: 1rem; margin-bottom: 1.25rem; }
+.hdr .ic { width: 2.4rem; height: 2.4rem; color: #E9D5FF; }
+.sub { color: var(--muted); font-size: var(--fs-lg); margin: .4rem 0 .9rem; }
+.how { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.4rem; }
+.chip { display: inline-flex; align-items: center; gap: .45rem; padding: .45rem .85rem; border-radius: 999px;
+  background: rgba(255,255,255,.10); border: 1px solid var(--glass-rim); color: var(--text); font-size: var(--fs-sm);
+  font-weight: 500; backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
+.chip b { color: #E9D5FF; font-weight: 700; }
 
-/* inputs and the Go button */
-div[data-baseweb="input"], div[data-baseweb="textarea"] { background: var(--glass-2) !important;
-  border: 1px solid var(--glass-border) !important; border-radius: 12px !important; backdrop-filter: var(--blur); }
-div[data-baseweb="input"] input { background: transparent !important; color: var(--text) !important; min-height: 2.6rem; }
+/* Streamlit widgets: labels, inputs, the Go button */
+.stApp label, .stApp [data-testid="stWidgetLabel"] p { font-size: var(--fs-sm) !important; font-weight: 600 !important; color: var(--muted) !important; }
+div[data-baseweb="input"], div[data-baseweb="textarea"] { background: rgba(255,255,255,.10) !important;
+  border: 1px solid var(--glass-rim) !important; border-radius: var(--r-sm) !important;
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
+div[data-baseweb="input"] input, div[data-baseweb="textarea"] textarea { background: transparent !important;
+  color: var(--text) !important; font-size: var(--fs-md) !important; min-height: 2.75rem; }
+div[data-baseweb="input"]:focus-within, div[data-baseweb="textarea"]:focus-within { border-color: #C4B5FD !important;
+  box-shadow: 0 0 0 3px rgba(196,181,253,.35) !important; }
 div[data-testid="stFormSubmitButton"] button {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%) !important; border: 0 !important;
-  color: var(--on-primary) !important; font-weight: 700; min-height: 2.75rem; font-size: 1.05rem; cursor: pointer;
-  border-radius: 12px !important; box-shadow: 0 6px 24px rgba(139,92,246,.45); transition: transform .15s ease-out, box-shadow .15s ease-out; }
-div[data-testid="stFormSubmitButton"] button:hover { transform: translateY(-1px); box-shadow: 0 10px 30px rgba(236,72,153,.45); }
+  color: #fff !important; min-height: 2.9rem; border-radius: var(--r-sm) !important; cursor: pointer;
+  box-shadow: 0 8px 28px rgba(139,92,246,.55), inset 0 1px 0 rgba(255,255,255,.35); transition: transform .15s ease-out, box-shadow .15s ease-out; }
+div[data-testid="stFormSubmitButton"] button p { font-size: var(--fs-lg) !important; font-weight: 700 !important; color: #fff !important; }
+div[data-testid="stFormSubmitButton"] button:hover { transform: translateY(-1px); box-shadow: 0 12px 34px rgba(236,72,153,.55); }
 div[data-testid="stFormSubmitButton"] button:disabled { opacity: .45; box-shadow: none; transform: none; }
 
+/* sidebar: wider, glass, clearly a control panel */
+section[data-testid="stSidebar"] { width: 400px !important; min-width: 400px !important; }
+section[data-testid="stSidebar"] > div { background: rgba(255,255,255,.07); border-right: 1px solid var(--glass-rim);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
+section[data-testid="stSidebar"] .block-container, section[data-testid="stSidebarContent"] { padding: 1.5rem 1.4rem; }
+.side-intro { border-radius: var(--r-md); padding: 1rem 1.1rem; margin-bottom: 1rem; }
+.side-intro h2 { font-size: var(--fs-xl); font-weight: 800; margin: 0 0 .35rem; display: flex; gap: .5rem; align-items: center; }
+.side-intro p { color: var(--muted); font-size: var(--fs-sm); line-height: 1.5; margin: 0; }
+.mode { display: inline-flex; gap: .45rem; align-items: center; margin-top: .75rem; padding: .4rem .8rem; border-radius: 999px;
+  font-weight: 700; font-size: var(--fs-sm); border: 1px solid currentColor; background: rgba(0,0,0,.18); }
+.side-h { display: flex; gap: .5rem; align-items: center; font-size: var(--fs-lg); font-weight: 700; margin: 1.25rem 0 .2rem; }
+.side-d { color: var(--faint); font-size: var(--fs-sm); line-height: 1.5; margin: 0 0 .6rem; }
+
 /* progress rail */
-.rail { display: flex; flex-wrap: wrap; gap: .6rem; margin: .75rem 0 1.25rem; }
-.step { flex: 1 1 150px; border-radius: 14px; padding: .75rem .95rem; display: flex; gap: .6rem; align-items: center; min-height: 66px; }
-.step .dot { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
-             border: 2px solid rgba(255,255,255,.28); color: var(--idle); font-weight: 700; font-size: .85rem; flex: none; }
-.step .lbl { font-weight: 600; font-size: .95rem; }
-.step .meta { color: var(--muted); font-size: .8rem; line-height: 1.3; }
+.rail { display: flex; flex-wrap: wrap; gap: .7rem; margin: .4rem 0 1.4rem; }
+.step { flex: 1 1 160px; border-radius: var(--r-md); padding: .85rem 1rem; display: flex; gap: .7rem; align-items: center; min-height: 72px; }
+.step .dot { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+             border: 2px solid rgba(255,255,255,.4); color: var(--idle); font-weight: 700; font-size: var(--fs-sm); flex: none;
+             background: rgba(255,255,255,.06); }
+.step .lbl { font-weight: 700; font-size: var(--fs-md); }
+.step .meta { color: var(--muted); font-size: var(--fs-xs); line-height: 1.35; margin-top: .1rem; }
 .step.done .dot { background: linear-gradient(135deg, var(--primary), var(--primary-2)); border-color: transparent; color: #fff; }
-.step.running { border-color: rgba(34,211,238,.55); }
+.step.running { border-color: rgba(34,211,238,.75); }
 .step.running .dot { border-color: var(--live); color: var(--live); }
 .step.failed .dot { border-color: var(--bad); color: var(--bad); }
 
 /* call cards */
-.card { border-radius: 20px; padding: 1.15rem 1.25rem; display: flex; flex-direction: column; gap: .55rem;
-        min-height: 330px; transition: border-color .2s ease-out, box-shadow .2s ease-out; }
+.card { border-radius: var(--r-lg); padding: 1.25rem 1.35rem; display: flex; flex-direction: column; gap: .6rem;
+        min-height: 360px; transition: border-color .2s ease-out, box-shadow .2s ease-out; }
 .card .top { display: flex; justify-content: space-between; align-items: center; }
-.rank { background: rgba(255,255,255,.1); color: var(--muted); border-radius: 999px; padding: .2rem .65rem; font-size: .8rem; font-weight: 600; }
-.card h3 { font-size: 1.2rem; font-weight: 700; margin: 0; line-height: 1.3; }
-.addr { color: var(--muted); font-size: .85rem; line-height: 1.4; }
-.price { font-size: 2.1rem; font-weight: 600; line-height: 1; }
-.price small { font-family: 'Inter', sans-serif; font-size: .8rem; color: var(--muted); font-weight: 500; margin-left: .35rem; }
-.phone { color: var(--muted); font-size: .85rem; }
-.ring { color: var(--live); font-size: .8rem; }
-.pill { display: inline-flex; align-items: center; gap: .4rem; border-radius: 999px; padding: .35rem .85rem;
-        font-weight: 700; font-size: .95rem; width: fit-content; background: rgba(255,255,255,.08);
-        border: 1px solid currentColor; }
-.timer { font-size: 1.5rem; }
-.quote { font-size: .95rem; }
-.links { margin-top: auto; display: flex; flex-wrap: wrap; gap: .5rem; }
-.btn { display: inline-flex; align-items: center; gap: .35rem; border-radius: 12px; padding: .55rem .9rem; min-height: 44px;
-       font-weight: 600; font-size: .9rem; text-decoration: none !important; cursor: pointer;
-       border: 1px solid var(--glass-border); color: var(--text) !important; background: rgba(255,255,255,.08);
+.rank { background: rgba(255,255,255,.14); color: var(--text); border-radius: 999px; padding: .2rem .7rem;
+        font-size: var(--fs-xs); font-weight: 700; letter-spacing: .02em; }
+.card h3 { font-size: var(--fs-xl); font-weight: 700; margin: .1rem 0 0; line-height: 1.25; color: var(--text); }
+.addr { color: var(--muted); font-size: var(--fs-sm); line-height: 1.45; }
+.price { font-size: var(--fs-3xl); font-weight: 600; line-height: 1; color: var(--text); margin-top: .2rem; }
+.price small { font-family: 'Inter', sans-serif !important; font-size: var(--fs-sm); color: var(--muted); font-weight: 500; margin-left: .4rem; }
+.phone { color: var(--muted); font-size: var(--fs-sm); }
+.ring { color: var(--live); font-size: var(--fs-sm); font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: .45rem; border-radius: 999px; padding: .4rem .9rem;
+        font-weight: 700; font-size: var(--fs-md); width: fit-content; background: rgba(0,0,0,.22); border: 1px solid currentColor; }
+.timer { font-size: var(--fs-xl); font-weight: 600; }
+.quote { font-size: var(--fs-md); color: var(--text); }
+.links { margin-top: auto; display: flex; flex-wrap: wrap; gap: .5rem; padding-top: .4rem; }
+.btn { display: inline-flex; align-items: center; gap: .4rem; border-radius: var(--r-sm); padding: .6rem .95rem; min-height: 44px;
+       font-weight: 600; font-size: var(--fs-sm); text-decoration: none !important; cursor: pointer; text-shadow: none;
+       border: 1px solid var(--glass-rim); color: var(--text) !important; background: rgba(255,255,255,.12);
        transition: background .15s ease-out, transform .15s ease-out; }
-.btn:hover { background: rgba(255,255,255,.16); transform: translateY(-1px); }
-.btn:focus-visible, a:focus-visible { outline: 3px solid #C4B5FD; outline-offset: 2px; }
+.btn:hover { background: rgba(255,255,255,.22); transform: translateY(-1px); }
+.btn:focus-visible, .stApp a:focus-visible { outline: 3px solid #E9D5FF; outline-offset: 2px; }
 .btn.primary { background: linear-gradient(135deg, var(--primary), var(--primary-2)); color: #fff !important; border: 0;
-               box-shadow: 0 6px 22px rgba(139,92,246,.45); }
+               box-shadow: 0 8px 26px rgba(139,92,246,.5), inset 0 1px 0 rgba(255,255,255,.35); font-size: var(--fs-md); }
 
 .s-waiting { color: var(--idle); } .s-oncall { color: var(--live); } .s-available { color: var(--ok); }
 .s-unavailable, .s-error { color: var(--bad); } .s-voicemail, .s-no_answer { color: var(--warn); } .s-unclear { color: var(--muted); }
-.card.s-oncall { border-color: rgba(34,211,238,.6); box-shadow: var(--shadow), 0 0 28px rgba(34,211,238,.18); }
-.card.s-available { border-color: rgba(52,211,153,.6); box-shadow: var(--shadow), 0 0 28px rgba(52,211,153,.16); }
+.card.s-oncall { border-color: rgba(34,211,238,.85); box-shadow: var(--glass-shadow), 0 0 36px rgba(34,211,238,.35); }
+.card.s-available { border-color: rgba(52,211,153,.85); box-shadow: var(--glass-shadow), 0 0 36px rgba(52,211,153,.3); }
 .card .pill, .card .timer { color: inherit; }
-.card h3, .card .price, .card .quote { color: var(--text); }
 
 /* verdict hero */
-.hero { border-radius: 22px; padding: 1.5rem 1.7rem; margin-bottom: 1.25rem; }
-.hero.ok { border-color: rgba(52,211,153,.55); box-shadow: var(--shadow), 0 0 40px rgba(52,211,153,.14); }
-.hero .kicker { font-size: .85rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.hero h2 { font-size: 1.85rem; font-weight: 700; margin: .3rem 0 .4rem; line-height: 1.25; }
-.hero p { color: var(--muted); margin: .2rem 0; font-size: 1rem; }
-.hero .row { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .9rem; align-items: center; }
-.note { color: var(--muted); font-size: .85rem; font-style: italic; margin-top: .6rem; }
+.hero { border-radius: var(--r-lg); padding: 1.6rem 1.8rem; margin-bottom: 1.4rem; }
+.hero.ok { border-color: rgba(52,211,153,.8); box-shadow: var(--glass-shadow), 0 0 48px rgba(52,211,153,.28); }
+.hero .kicker { font-size: var(--fs-sm); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.hero h2 { font-size: var(--fs-2xl); font-weight: 800; margin: .35rem 0 .45rem; line-height: 1.25; color: var(--text); }
+.hero p { color: var(--muted); margin: .25rem 0; font-size: var(--fs-md); line-height: 1.5; }
+.hero .row { display: flex; flex-wrap: wrap; gap: .7rem; margin-top: 1rem; align-items: center; }
+.note { color: var(--faint); font-size: var(--fs-sm); font-style: italic; margin-top: .7rem; }
 
 /* metrics strip */
-.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .6rem; margin: 1.25rem 0; }
-.metric { border-radius: 14px; padding: .85rem 1rem; }
-.metric .k { color: var(--muted); font-size: .8rem; display: flex; gap: .4rem; align-items: center; }
-.metric .v { font-size: 1.6rem; font-weight: 600; margin-top: .15rem; }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .7rem; margin: 1.4rem 0; }
+.metric { border-radius: var(--r-md); padding: .95rem 1.1rem; }
+.metric .k { color: var(--muted); font-size: var(--fs-xs); font-weight: 600; display: flex; gap: .45rem; align-items: center;
+  text-transform: uppercase; letter-spacing: .06em; }
+.metric .v { font-size: var(--fs-2xl); font-weight: 600; margin-top: .25rem; color: var(--text); }
 
-.empty { border-style: dashed; border-radius: 20px; padding: 2.5rem; text-align: center; color: var(--muted); }
+.empty { border-style: dashed; border-radius: var(--r-lg); padding: 2.75rem; text-align: center; color: var(--muted); font-size: var(--fs-md); }
 
-/* tabs, code and tables sit on glass too */
-div[data-testid="stTabs"] [data-baseweb="tab-list"] { gap: .4rem; }
-div[data-testid="stCode"] pre, div[data-testid="stDataFrame"] { background: rgba(10,8,30,.55) !important; border-radius: 12px; }
+/* tabs, code and tables on glass */
+div[data-testid="stTabs"] button p { font-size: var(--fs-md) !important; font-weight: 600 !important; }
+div[data-testid="stCode"] pre, div[data-testid="stDataFrame"] { background: rgba(6,4,24,.55) !important; border-radius: var(--r-sm); }
 
 @media (prefers-reduced-motion: no-preference) {
+  .stApp::before { animation: drift 40s ease-in-out infinite alternate; }
+  @keyframes drift { 0% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(3%,-2%,0) scale(1.05); }
+                     100% { transform: translate3d(-3%,2%,0) scale(1.02); } }
   .step.running .dot, .card.s-oncall .pill { animation: pulse 1.6s ease-in-out infinite; }
-  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(34,211,238,.5); } 50% { box-shadow: 0 0 0 8px rgba(34,211,238,0); } }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(34,211,238,.6); } 50% { box-shadow: 0 0 0 9px rgba(34,211,238,0); } }
 }
 @media (prefers-reduced-motion: reduce) { .btn:hover, div[data-testid="stFormSubmitButton"] button:hover { transform: none; } }
+@media (max-width: 900px) { section[data-testid="stSidebar"] { width: 100% !important; min-width: 0 !important; } }
 </style>
 """
 
@@ -458,23 +514,44 @@ def _render_details(run) -> None:
 
 # --- page -----------------------------------------------------------------------------
 
-st.set_page_config(page_title="Hotel Agent", page_icon="🏨", layout="wide")
+st.set_page_config(page_title="Hotel Agent", page_icon="🏨", layout="wide", initial_sidebar_state="expanded")
 _html(CSS)
-_html(f'<div class="hdr">{_icon("hotel")}<h1>Hotel Agent</h1></div>'
-      '<div class="sub">One prompt in. The 3 cheapest hotels get called at the same time. One email out.</div>')
+_html(
+    f'<div class="hdr">{_icon("hotel")}<h1>Hotel Agent</h1></div>'
+    '<div class="sub">Type what you need. An AI voice agent phones the 3 cheapest hotels at the same time '
+    'and emails you who has a room.</div>'
+    '<div class="how">'
+    f'<span class="chip">{_icon("search")} <b>1</b> Finds hotels within '
+    f'{getattr(config, "SEARCH_RADIUS_KM", 20):g} km</span>'
+    f'<span class="chip">{_icon("phonecall")} <b>2</b> Calls the 3 cheapest at once</span>'
+    f'<span class="chip">{_icon("check")} <b>3</b> Confirms a room and the rate</span>'
+    f'<span class="chip">{_icon("mail")} <b>4</b> Emails you the results</span></div>'
+)
+
+
+def _side_section(icon: str, title: str, description: str) -> None:
+    _html(f'<div class="side-h">{_icon(icon)} {title}</div><p class="side-d">{description}</p>')
+
 
 with st.sidebar:
-    st.header("Test mode")
+    intro_box = st.empty()  # filled below, once we know which mode the controls are in
+
+    _side_section("flask", "Test mode",
+                  "Fake steps run instantly and cost nothing, so you can rehearse the demo. "
+                  "Untick them to use the real services.")
     # On by default until voice_agent and email_service are merged and tested
     fake_calls = st.checkbox("Fake calls (no phone calls)", value=True)
     fake_email = st.checkbox("Fake email (nothing sent)", value=True)
     fake_search = st.checkbox("Fake search (no SerpApi credits)", value="search" in config.MOCK_MODULES)
     pipeline.MOCK_CALL_DELAY_S = st.slider("Fake call length (s)", 0.0, 10.0, 3.0, 0.5)
 
-    st.header("Who the agent calls")
+    _side_section("phonecall", "Who the agent calls",
+                  "With real calls on, the agent can ring your own phone instead of the hotels, so you can "
+                  "play the front desk. The results still show the real hotels.")
     dial_block = None  # why Go is disabled, if it is
+    target = None
     if fake_calls:
-        st.caption("Fake calls are on, so nobody is phoned. Turn them off to call a real phone.")
+        st.caption("Fake calls are on, so nobody is phoned. Untick it to call a real phone.")
     else:
         target = st.radio("Call", ["Our own test number(s)", "The real hotels"], index=0,
                           help="Test numbers get the real call (same agent, same script), but ring "
@@ -509,6 +586,20 @@ with st.sidebar:
         if dial_block:
             st.error(dial_block)
     config.MOCK_MODULES = {m for m, on in (("voice", fake_calls), ("email", fake_email), ("search", fake_search)) if on}
+
+    if fake_calls:
+        mode = ("s-available", "check", "Safe: no calls" + (", no email" if fake_email else ", real email"))
+    elif target == "The real hotels":
+        mode = ("s-unavailable", "alert", "Live: calls the real hotels")
+    else:
+        mode = ("s-oncall", "phonecall", "Live: rings your test number(s)")
+    intro_box.markdown(
+        f'<div class="side-intro"><h2>{_icon("settings")} Control panel</h2>'
+        '<p>Choose what this run really does before you press Go. The defaults are safe: '
+        'nothing rings and nothing is sent.</p>'
+        f'<span class="mode {mode[0]}">{_icon(mode[1])} {mode[2]}</span></div>',
+        unsafe_allow_html=True,
+    )
 
 with st.form("prompt", border=False):
     c1, c2, c3 = st.columns([5, 3, 1.2], vertical_alignment="bottom")
