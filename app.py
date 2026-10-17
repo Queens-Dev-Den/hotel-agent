@@ -119,7 +119,9 @@ section[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"], [da
 .hdr h1 { font-size: 2.75rem; font-weight: 800; margin: 0; letter-spacing: -0.035em; line-height: 1.05;
   background: linear-gradient(135deg, #FFFFFF 30%, #C4B5FD 100%); -webkit-background-clip: text; background-clip: text;
   color: transparent; }
-.hdr .ic { width: 2.5rem; height: 2.5rem; color: #A78BFA; filter: drop-shadow(0 4px 14px rgba(124,58,237,.55)); }
+.logo { width: 3.1rem; height: 3.1rem; border-radius: 14px; display: grid; place-items: center; flex: none;
+  background: linear-gradient(135deg, #8B5CF6, #6D28D9); box-shadow: 0 8px 24px rgba(124,58,237,.5), inset 0 1px 0 rgba(255,255,255,.25); }
+.logo .ic { width: 1.7rem; height: 1.7rem; color: #fff; stroke-width: 2.5; }
 .sub { color: var(--muted); font-size: var(--fs-lg); line-height: 1.55; margin: .7rem auto 1.4rem; text-align: center;
   max-width: 600px; text-wrap: balance; }
 .how { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .35rem .4rem; margin-bottom: 2.2rem; }
@@ -239,7 +241,7 @@ div[data-testid="stCode"] pre, div[data-testid="stDataFrame"] { background: rgba
 
 @media (max-width: 640px) {
   .block-container { padding: 2rem 1rem 3rem; }
-  .hdr h1 { font-size: 2.1rem; } .hdr .ic { width: 2rem; height: 2rem; }
+  .hdr h1 { font-size: 2.1rem; } .logo { width: 2.5rem; height: 2.5rem; border-radius: 12px; } .logo .ic { width: 1.35rem; height: 1.35rem; }
   .sub { font-size: var(--fs-md); } .sep { display: none; }
   div[data-testid="stForm"] { padding: .9rem; }
 }
@@ -494,10 +496,10 @@ def _render_details(run) -> None:
 
 # --- page -----------------------------------------------------------------------------
 
-st.set_page_config(page_title="Hotel Agent", page_icon="🏨", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Hotel Spot", page_icon="🔍", layout="wide", initial_sidebar_state="collapsed")
 _html(CSS)
 _html(
-    f'<div class="hdr">{_icon("hotel")}<h1>Hotel Agent</h1></div>'
+    f'<div class="hdr"><span class="logo" aria-hidden="true">{_icon("search")}</span><h1>Hotel Spot</h1></div>'
     '<div class="sub">Type what you need. An AI voice agent phones the 3 cheapest hotels at the same time '
     'and emails you who has a room.</div>'
     '<div class="how">'
