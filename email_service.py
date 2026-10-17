@@ -76,7 +76,8 @@ def build_payload(run: Run) -> EmailPayload:
         )
 
     return EmailPayload(
-        to=config.RECEIPT_TO_EMAIL or run.request.callback_email,
+        # The address typed in the UI / passed to pipeline.run wins; .env is only the default
+        to=run.request.callback_email or config.RECEIPT_TO_EMAIL,
         subject=subject(),
         request=run.request,
         hotels=hotels,
