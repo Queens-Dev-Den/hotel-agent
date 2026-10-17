@@ -11,6 +11,9 @@ Backboard is **not** in the live call loop (see [architecture decision #1](archi
 - `fallback_extract(transcript) -> Availability | None`: Backboard extraction **only for a call whose `record_availability` tool never fired and whose regex fallback failed** (≤ 300 tokens per call).
 - Token counters: `backboard_in`, `backboard_out` and `agent_llm` (read from each ElevenLabs conversation's details if they are exposed, **summed across the 3 calls**) written to the `Run` object.
 - Backboard memory: store each hotel's availability outcome, IVR path and hold time per run. That's a talking point for "learns across runs".
+  - **Built.** `remember_run(run)` runs after the email and saves one line per call to the `hotel-agent-memory` assistant (`BACKBOARD_ASSISTANT_ID`), e.g. `[+14165550123] Hotel Ocho, 2026-10-17: available; quoted $179/night; menu: press 1 for reservations; put on hold; call 74s`. Our code writes it, so it costs 0 LLM tokens.
+  - `recall_hotel_notes(candidate)` runs before the calls (one per candidate, in parallel, about 0.9 s, 3 s timeout). It returns the 2 newest notes for that exact phone number, capped at 160 characters, and the pipeline passes them to `build_call_plan(..., hotel_notes=...)`. The agent sees them as `{{hotel_notes}}` ("none" when there's no history).
+  - Any Backboard error makes both functions return empty, so memory can never block a run.
 
 ## Defaults when the prompt is silent
 
