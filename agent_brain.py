@@ -89,10 +89,12 @@ def _find_dates(text: str, today: date) -> list[date]:
     return found
 
 
-def _usage_add(usage: dict[str, int] | None, tokens_in: int, tokens_out: int) -> None:
+def _usage_add(usage: dict[str, int] | None, tokens_in: int, tokens_out: int, stage: str) -> None:
+    """Add to the run totals plus a per-stage total (backboard_parse / backboard_extract) for the deck."""
     if usage is not None:
         usage["backboard_in"] = usage.get("backboard_in", 0) + tokens_in
         usage["backboard_out"] = usage.get("backboard_out", 0) + tokens_out
+        usage[f"backboard_{stage}"] = usage.get(f"backboard_{stage}", 0) + tokens_in + tokens_out
 
 
 def _budget_left(usage: dict[str, int] | None) -> int:
@@ -150,14 +152,16 @@ def _backboard_complete(
     return body.get("content") or "", body.get("input_tokens") or 0, body.get("output_tokens") or 0
 
 
-def _backboard_json(system: str, user: str, max_tokens: int, usage: dict[str, int] | None) -> dict | None:
+def _backboard_json(
+    system: str, user: str, max_tokens: int, usage: dict[str, int] | None, stage: str
+) -> dict | None:
     if _budget_left(usage) < max_tokens:
         return None
     try:
         text, tokens_in, tokens_out = _backboard_complete(system, user, max_tokens)
     except (NotImplementedError, httpx.HTTPError):
         return None
-    _usage_add(usage, tokens_in, tokens_out)
+    _usage_add(usage, tokens_in, tokens_out, stage)
     match = re.search(r"\{.*\}", text, re.S)
     if not match:
         return None
@@ -234,7 +238,7 @@ def parse_prompt(
     today = today or date.today()
     fields = _regex_parse(prompt, today)
     if fields is None:
-        raw = _backboard_json(PARSE_SYSTEM.replace("{today}", today.isoformat()), prompt, PARSE_MAX_TOKENS, usage)
+        raw = _backboard_json(PARSE_SYSTEM.replace("{today}", today.isoformat()), prompt, PARSE_MAX_TOKENS, usage, "parse")
         if not raw or not raw.get("city"):
             raise ValueError(f"Could not find a city in prompt: {prompt!r}")
         fields = {
@@ -332,7 +336,7 @@ def fallback_extract(
     """
     if not transcript.strip():
         return None
-    raw = _backboard_json(EXTRACT_SYSTEM, transcript[-TRANSCRIPT_TAIL_CHARS:], EXTRACT_MAX_TOKENS, usage)
+    raw = _backboard_json(EXTRACT_SYSTEM, transcript[-TRANSCRIPT_TAIL_CHARS:], EXTRACT_MAX_TOKENS, usage, "extract")
     if raw is None or "available" not in raw:
         return None
     available = raw["available"]
@@ -344,6 +348,45 @@ def fallback_extract(
         notes=str(raw.get("notes") or "")[:200],
         source="backboard",
     )
+
+
+# --- Agent LLM tokens (ElevenLabs) ---------------------------------------------
+
+def _sum_llm_usage(llm_usage: dict | None) -> tuple[int, int]:
+    """LLMCategoryUsage or LLMUsage -> (input incl. cache, output) summed over every model."""
+    tokens_in = tokens_out = 0
+    if not llm_usage:
+        return 0, 0
+    # LLMCategoryUsage splits generations into categories; a bare LLMUsage has model_usage directly
+    categories = [llm_usage] if "model_usage" in llm_usage else [v for v in llm_usage.values() if isinstance(v, dict)]
+    for category in categories:
+        for model in (category.get("model_usage") or {}).values():
+            for key in ("input", "input_cache_read", "input_cache_write"):
+                tokens_in += (model.get(key) or {}).get("tokens", 0)
+            tokens_out += (model.get("output_total") or {}).get("tokens", 0)
+    return tokens_in, tokens_out
+
+
+def agent_llm_tokens(conversation: dict) -> int:
+    """Total LLM tokens for one call, from GET /v1/convai/conversations/{id}.
+
+    Prefers metadata.charging.llm_usage; falls back to summing transcript[].llm_usage.
+    """
+    charging = ((conversation.get("metadata") or {}).get("charging") or {}).get("llm_usage")
+    tokens_in, tokens_out = _sum_llm_usage(charging)
+    if tokens_in + tokens_out == 0:
+        for turn in conversation.get("transcript") or []:
+            t_in, t_out = _sum_llm_usage(turn.get("llm_usage"))
+            tokens_in, tokens_out = tokens_in + t_in, tokens_out + t_out
+    return tokens_in + tokens_out
+
+
+def add_agent_llm_tokens(conversation: dict, usage: dict[str, int] | None) -> int:
+    """Add one call's agent LLM tokens to Run.telemetry.tokens["agent_llm"]. Call once per call."""
+    tokens = agent_llm_tokens(conversation)
+    if usage is not None:
+        usage["agent_llm"] = usage.get("agent_llm", 0) + tokens
+    return tokens
 
 
 # --- Memory: learn across runs -------------------------------------------------
