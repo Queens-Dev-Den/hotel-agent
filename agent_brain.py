@@ -365,16 +365,10 @@ def _usage_breakdown(llm_usage: dict | None) -> dict[str, int]:
     return out
 
 
-def agent_llm_usage(conversation: dict) -> dict[str, int]:
-    """Agent LLM tokens for one call by kind (input, cache_read, cache_write, output),
-    from GET /v1/convai/conversations/{id}.
-
-    metadata.charging.llm_usage has two categories: initiated_generation (everything the
-    LLM started, including interrupted replies) already contains irreversible_generation
-    (what was spoken), so only the first is counted. Falls back to per-turn llm_usage.
-    """
+def _category_usage(conversation: dict, order: tuple[str, ...]) -> dict[str, int]:
+    """Usage for the first charging category in `order` that has tokens; else per-turn usage."""
     categories = ((conversation.get("metadata") or {}).get("charging") or {}).get("llm_usage") or {}
-    for name in ("initiated_generation", "irreversible_generation"):
+    for name in order:
         usage = _usage_breakdown(categories.get(name))
         if sum(usage.values()):
             return usage
@@ -385,19 +379,39 @@ def agent_llm_usage(conversation: dict) -> dict[str, int]:
     return total
 
 
+def agent_llm_usage(conversation: dict) -> dict[str, int]:
+    """Agent LLM tokens for one call by kind (input, cache_read, cache_write, output),
+    from GET /v1/convai/conversations/{id}.
+
+    metadata.charging.llm_usage has initiated_generation (everything the LLM started,
+    including interrupted replies), which already contains irreversible_generation (what
+    was spoken). The ElevenLabs dashboard counts the spoken replies, so that comes first.
+    """
+    return _category_usage(conversation, ("irreversible_generation", "initiated_generation"))
+
+
 def agent_llm_tokens(conversation: dict) -> int:
-    """Total agent LLM tokens for one call (see agent_llm_usage)."""
-    return sum(agent_llm_usage(conversation).values())
+    """Headline agent tokens for one call: spoken replies, fresh input + output, no cache.
+    Matches the ElevenLabs dashboard."""
+    usage = agent_llm_usage(conversation)
+    return usage["input"] + usage["output"]
+
+
+def agent_llm_context_tokens(conversation: dict) -> int:
+    """Everything the LLM processed for one call: every reply started, cache reads/writes included."""
+    return sum(_category_usage(conversation, ("initiated_generation", "irreversible_generation")).values())
 
 
 def add_agent_llm_tokens(conversation: dict, usage: dict[str, int] | None) -> int:
-    """Add one call's tokens to Run.telemetry.tokens: "agent_llm" (total) and
-    "agent_llm_cache_read" (the cheap cached part of it). Call once per call."""
-    breakdown = agent_llm_usage(conversation)
-    tokens = sum(breakdown.values())
+    """Add one call's tokens to Run.telemetry.tokens. Call once per call.
+
+    "agent_llm": the headline number, matching the ElevenLabs dashboard.
+    "agent_llm_context": the full context processed, mostly cheap cache reads.
+    """
+    tokens = agent_llm_tokens(conversation)
     if usage is not None:
         usage["agent_llm"] = usage.get("agent_llm", 0) + tokens
-        usage["agent_llm_cache_read"] = usage.get("agent_llm_cache_read", 0) + breakdown["cache_read"]
+        usage["agent_llm_context"] = usage.get("agent_llm_context", 0) + agent_llm_context_tokens(conversation)
     return tokens
 
 
