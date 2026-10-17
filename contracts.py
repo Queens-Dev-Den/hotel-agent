@@ -29,6 +29,9 @@ class HotelCandidate(BaseModel):
     total_price: float
     currency: str = "CAD"
     source: str
+    booking_url: str | None = None  # cheapest booking site's link, from search (never used by the call)
+    booking_source: str | None = None  # e.g. "Booking.com", or the hotel's own name if official
+    website: str | None = None  # the hotel's own site
 
 
 class SearchResult(BaseModel):
