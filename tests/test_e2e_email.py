@@ -41,7 +41,7 @@ def test_three_parallel_tool_calls_then_one_email(server, monkeypatch):
 
     assert len(sent) == 1 and receipt.message_id == "mid-1" and run.email is receipt
     to, subject, body = sent[0]
-    assert to == "me@example.com" and subject == "Team # 15 - Hotel Reservation Confirmed!"
+    assert to == "me@example.com" and subject == "Team # 15 - Hotel Quotes Confirmed"
     assert "=== Cheapest available hotel ===" in body
     assert "Price for Stay: $189.00 total ($189.00/night x 1 night, quoted on the call)" in body
     assert "Call Recording: https://" in body and "/c1\n" in body

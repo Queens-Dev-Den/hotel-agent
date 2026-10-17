@@ -51,7 +51,7 @@ def mixed_run() -> Run:
 
 
 def test_subject_is_exact():
-    assert email_service.subject() == "Team # 15 - Hotel Reservation Confirmed!"
+    assert email_service.subject() == "Team # 15 - Hotel Quotes Confirmed"
 
 
 def test_hotels_sorted_cheapest_first():
@@ -118,7 +118,7 @@ def test_availability_falls_back_to_call_result():
 
 def test_check_rejects_bad_subject():
     payload = email_service.build_payload(mixed_run())
-    payload.subject = "Team # 15 - Hotel Reservation Confirmed"
+    payload.subject = "Team # 15 - Hotel Reservation Confirmed!"
     with pytest.raises(ValueError, match="subject"):
         email_service.check_payload(payload)
 
@@ -143,7 +143,7 @@ def test_send_uses_resend_and_records_receipt(monkeypatch):
     run = mixed_run()
     receipt = email_service.send(run)
     assert receipt.message_id == "rid-1" and run.email is receipt
-    assert sent["to"] == "me@example.com" and sent["s"] == "Team # 15 - Hotel Reservation Confirmed!"
+    assert sent["to"] == "me@example.com" and sent["s"] == "Team # 15 - Hotel Quotes Confirmed"
 
 
 def test_send_falls_back_to_smtp(monkeypatch):
@@ -213,3 +213,11 @@ def test_recipient_from_request_beats_env(monkeypatch):
 def test_recipient_falls_back_to_env(monkeypatch):
     monkeypatch.setattr(config, "RECEIPT_TO_EMAIL", "env@example.com")
     assert email_service.build_payload(mixed_run()).to == "env@example.com"
+
+
+def test_body_ends_with_team_signature():
+    body = email_service.render_body(email_service.build_payload(mixed_run()))
+    assert body.endswith(
+        "\n--\nTeam 15\nisaacoue4@gmail.com\nrichardguo64@gmail.com\n"
+        "zacharygazaille@gmail.com\njordanbouckley@gmail.com\n"
+    )
