@@ -206,3 +206,24 @@ def test_resolve_fills_volunteered_reservation_number(base):
     post(base, payload(1))
     run = make_run({1: YES + "\nHotel: Your reservation number is HX4729."})
     assert tool_server.resolve_availability(run)[0].reservation_number == "HX4729"
+
+
+def test_resolve_voicemail_call_is_unknown_even_if_greeting_says_not_available(base):
+    greeting = "Agent: Hi\nHotel: The person you're trying to reach is not available. At the tone, please record your message."
+    run = make_run({1: greeting})
+    run.calls[0].outcome = "voicemail"
+    got = tool_server.resolve_availability(run, lambda *a, **k: pytest.fail("no tokens for a voicemail"))
+    assert got[0].available is None
+
+
+def test_resolve_ignores_transcript_when_nobody_answered(base):
+    run = make_run({1: YES})  # transcript says yes, but the call never connected to a person
+    run.calls[0].outcome = "no_answer"
+    assert tool_server.resolve_availability(run)[0].available is None
+
+
+def test_resolve_still_honours_a_tool_result_on_odd_outcomes(base):
+    post(base, payload(1, available=True, quoted_rate="$99"))
+    run = make_run({1: None})
+    run.calls[0].outcome = "error"
+    assert tool_server.resolve_availability(run)[0].available is True

@@ -208,3 +208,65 @@ def test_no_number_unless_volunteered():
     # the agent's own words never count
     text = "Agent: reservation number is ZZ9999\nHotel: Sold out."
     assert check(text).reservation_number is None
+
+
+# --- real dry-run transcripts (calls to our own phones) -------------------------
+
+RIVIERA = """Agent: Hi, I'm just calling to ask what's the cheapest room you have available...
+Hotel: Sorry, what?
+Agent: Sorry about that, let me start over.
+Hotel: But you know, we are not actually taking it, okay? You, listen, listen, I think- Hello?
+Agent: I'm here. I'm just calling to check if you have a room available for Monday, Novem...
+Hotel: Uh, you know, I'm gonna call you back in- Uh, sorry, I have nothing available. You can say it in the beginning, "Hey, I'm-" Yeah, I have a room available.
+Agent: Sorry, I think we got our wires crossed.
+Hotel: That's correct.
+Agent: Understood. Is there a room...
+Hotel: Hold on, hold on. No, sorry. Someone else is talking in the background. Um, I have a room available, trust me. Just yes, whatever room you said, I have it available. Okay.
+Agent: Okay, so you have a room available for Monday, November...
+Hotel: Yep, yep, yep. I have that room available.
+Agent: Great, and what's the lowest nightly rate you have for that night?...
+Hotel: Lowest nightly rate I have is $2.00.
+Agent: Just to confirm, you have a room available for Monday,...
+Hotel: For two dollars. Yep, yep, yep. Confirmed. Yep.
+Agent: Got it, two dollars a night. Thank you...
+Hotel: Yes.
+Agent: Thank you, goodbye.
+"""
+
+
+def test_price_in_a_later_sentence_than_the_yes():
+    a = check(RIVIERA)
+    assert a.available is True and a.quoted_rate == 2.0
+
+
+def test_dry_run_no_rooms_and_voicemail():
+    no_rooms = ("Agent: Hi there.\nHotel: Hello?\nAgent: Do you have a room?\nHotel: Sorry, I have nothing available.\n"
+                "Agent: Just to confirm, you have no rooms available for those dates?\nHotel: That's correct.")
+    assert check(no_rooms).available is False
+
+
+def test_voicemail_greeting_is_unknown_not_unavailable():
+    greeting = ("Agent: Hi, I'm just calling to ask what's the cheapest room you have\n"
+                "Hotel: The person you're trying to reach is not available. At the tone, please record your message. "
+                "When you have finished recording, you may hang up.")
+    assert check(greeting).available is None
+    assert check("Hotel: Please leave a message after the beep.").available is None
+    assert check("Hotel: We're not available right now, sold out.").available is False  # a person, not a machine
+
+
+@pytest.mark.parametrize("line,expected", [
+    ("Yes we have a room, it's two dollars.", 2.0),
+    ("Yes we have one. It's a hundred and fifty dollars a night.", 150.0),
+    ("We do have a room for one eighty nine a night.", 189.0),
+    ("We have a room, one twenty bucks.", 120.0),
+    ("Sure, we have a room. Two ninety nine per night.", 299.0),
+    ("Yes we have a room. Twenty one dollars.", 21.0),
+])
+def test_spoken_amounts(line, expected):
+    a = check(t(line))
+    assert a.available is True and a.quoted_rate == expected
+
+
+def test_rate_comes_from_the_last_mention():
+    text = t("Yes we have a room, rates start at $120.", "Actually the cheapest is $99 tonight.")
+    assert check(text).quoted_rate == 99.0
