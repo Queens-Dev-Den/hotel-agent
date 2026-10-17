@@ -52,7 +52,8 @@ HOTEL_YES = [("agent", "Hi, what's your cheapest room?"), ("user", "Yes, we have
 HOTEL_NO = [("agent", "Hi, what's your cheapest room?"), ("user", "Sorry, we're sold out those nights.")]
 
 
-def test_sends_plan_overrides_and_variables(fake_api):
+def test_sends_plan_overrides_and_variables(fake_api, monkeypatch):
+    monkeypatch.setattr(config, "VOICE_LISTEN_FIRST", False)
     fake_api["gets"] = [_conversation(turns=HOTEL_YES)]
     voice_agent.place_call(PLAN)
     body = fake_api["posts"][0]
@@ -62,6 +63,18 @@ def test_sends_plan_overrides_and_variables(fake_api):
     agent = client_data["conversation_config_override"]["agent"]
     assert agent["prompt"]["prompt"] == PLAN.system_prompt
     assert agent["first_message"] == PLAN.first_message
+
+
+def test_listen_first_moves_opener_into_prompt(fake_api, monkeypatch):
+    monkeypatch.setattr(config, "VOICE_LISTEN_FIRST", True)
+    fake_api["gets"] = [_conversation(turns=HOTEL_YES)]
+    voice_agent.place_call(PLAN)
+    agent = fake_api["posts"][0]["conversation_initiation_client_data"]["conversation_config_override"]["agent"]
+    assert agent["first_message"] == ""
+    prompt = agent["prompt"]["prompt"]
+    assert prompt.startswith(PLAN.system_prompt)
+    assert f'start with: "{PLAN.first_message}"' in prompt
+    assert "{{check_in}}" in prompt  # ElevenLabs fills the dates in the prompt too
 
 
 def test_polls_until_done_then_available(fake_api):

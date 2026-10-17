@@ -52,6 +52,24 @@ def conversation_details(conversation_id: str) -> dict:
 
 # --- ElevenLabs requests --------------------------------------------------------
 
+LISTEN_FIRST_LINE = (
+    '\n- Wait for them to speak first. Once a person greets you, start with: "{opener}" '
+    "If it's a phone menu, follow it first and say this to the person who answers."
+)
+
+
+def _agent_override(plan: CallPlan) -> dict:
+    """Prompt + first message for this call.
+
+    With VOICE_LISTEN_FIRST the agent stays silent on pickup (hotels and phone menus
+    always speak first) and says the plan's opener as its first reply instead.
+    """
+    if not (config.VOICE_LISTEN_FIRST and plan.first_message):
+        return {"prompt": {"prompt": plan.system_prompt}, "first_message": plan.first_message}
+    prompt = plan.system_prompt + LISTEN_FIRST_LINE.format(opener=plan.first_message)
+    return {"prompt": {"prompt": prompt}, "first_message": ""}
+
+
 def _start_call(client: httpx.Client, plan: CallPlan) -> str:
     body = {
         "agent_id": config.ELEVENLABS_AGENT_ID,
@@ -59,12 +77,7 @@ def _start_call(client: httpx.Client, plan: CallPlan) -> str:
         "to_number": plan.candidate.phone_e164,
         "conversation_initiation_client_data": {
             "dynamic_variables": plan.dynamic_vars,
-            "conversation_config_override": {
-                "agent": {
-                    "prompt": {"prompt": plan.system_prompt},
-                    "first_message": plan.first_message,
-                },
-            },
+            "conversation_config_override": {"agent": _agent_override(plan)},
         },
     }
     resp = client.post(OUTBOUND_PATH, json=body)

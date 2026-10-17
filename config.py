@@ -97,6 +97,8 @@ VOICE_POLL_INTERVAL_S = _float("VOICE_POLL_INTERVAL_S", 2.0)
 TRANSCRIPT_WAIT_S = _int("TRANSCRIPT_WAIT_S", 20)
 # Re-fetches when a finished call's transcript is still empty
 TRANSCRIPT_RETRIES = _int("TRANSCRIPT_RETRIES", 4)
+# Agent stays silent on pickup and says the plan's first message after the hotel speaks
+VOICE_LISTEN_FIRST = _bool("VOICE_LISTEN_FIRST", True)
 # Dashboard link to one call's audio, put in the email; {id} = conversation_id.
 # Check it against a link copied from the ElevenLabs call history page.
 ELEVENLABS_CONVERSATION_URL = (
