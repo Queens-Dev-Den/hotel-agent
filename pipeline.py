@@ -59,7 +59,8 @@ def _mock_parse_prompt(prompt: str, *, callback_email: str = "", usage=None) -> 
 def _mock_find_candidates(request: HotelRequest, *, stats=None) -> list[HotelCandidate]:
     return [
         HotelCandidate(rank=i, name=f"Mock Hotel {i}", address=f"{i} King St W, Toronto, ON",
-                       phone_e164=f"+1416555010{i}", total_price=50.0 * i, source="mock")
+                       phone_e164=f"+1416555010{i}", total_price=50.0 * i, source="mock",
+                       booking_url="https://www.booking.com/", booking_source="Booking.com (fake)")
         for i in (1, 2, 3)
     ]
 
@@ -219,6 +220,7 @@ def run(prompt: str, *, callback_email: str | None = None, on_event: Emit | None
     with _stage(r, "search", emit):
         r.candidates = _find_candidates()(r.request, stats=search_stats)
     log.info("search dropped: %s", search_stats)
+    r.telemetry.tokens["serpapi_searches"] = search_stats.get("serpapi_searches", 0)
     emit("candidates", {"candidates": r.candidates})
 
     with _stage(r, "recall", emit):
