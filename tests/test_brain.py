@@ -154,7 +154,8 @@ def test_fallback_extract_unknown(monkeypatch):
     assert fallback_extract(TRANSCRIPT, 3).available is None
 
 
-def test_fallback_extract_unwired_returns_none():
+def test_fallback_extract_without_key_returns_none(monkeypatch):
+    monkeypatch.delenv("BACKBOARD_API_KEY", raising=False)
     assert fallback_extract(TRANSCRIPT, 1) is None
 
 
