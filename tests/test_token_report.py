@@ -10,7 +10,7 @@ def make_run(run_id, minute, total_s, parse, extract, agent):
         run_id=run_id, prompt="p", started_at=start,
         email=EmailReceipt(message_id="m", sent_at=start + timedelta(seconds=total_s)),
         telemetry=Telemetry(
-            stage_ms={"brain": 5, "search": 4000, "call": 150000, "email": 900},
+            stage_ms={"brain": 5, "search": 4000, "recall": 900, "call": 150000, "email": 900},
             tokens={"backboard_in": parse + extract - 20, "backboard_out": 20,
                     "backboard_parse": parse, "backboard_extract": extract, "agent_llm": agent},
         ),
@@ -19,7 +19,7 @@ def make_run(run_id, minute, total_s, parse, extract, agent):
 
 def test_report_averages():
     out = token_report.report([make_run("run-aaaa1", 0, 200, 0, 0, 3000), make_run("run-bbbb2", 5, 180, 160, 200, 4000)])
-    assert "| run-aaaa | 200.0 | 0.0 | 4.0 | 150.0 | 0.9 | 0 | 0 | 0 | 3,000 |" in out
+    assert "| run-aaaa | 200.0 | 0.0 | 4.0 | 0.9 | 150.0 | 0.9 | 0 | 0 | 0 | 3,000 |" in out
     assert "| **avg of 2** | **190.0** |" in out
     assert "Backboard per session: avg 180 / 1,200 budget (max 360)." in out
     assert "Agent LLM per run (3 parallel calls): avg 3,500." in out
