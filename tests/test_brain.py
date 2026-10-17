@@ -91,7 +91,7 @@ def test_no_city_uses_backboard(monkeypatch):
     usage = {"backboard_in": 0, "backboard_out": 0, "agent_llm": 0}
     r = parse("somewhere cheap at the capital", usage=usage)
     assert (r.city, r.check_in, r.check_out, r.guests) == ("Ottawa", date(2026, 11, 2), date(2026, 11, 3), 2)
-    assert usage == {"backboard_in": 60, "backboard_out": 25, "agent_llm": 0}
+    assert usage == {"backboard_in": 60, "backboard_out": 25, "agent_llm": 0, "backboard_parse": 85}
 
 
 @pytest.mark.parametrize("prompt", ["a hotel in the capital of Canada", "somewhere in a big city near the lake"])
@@ -173,7 +173,7 @@ def test_fallback_extract(monkeypatch):
     usage = {}
     a = fallback_extract(TRANSCRIPT, 1, usage=usage)
     assert (a.candidate_rank, a.available, a.quoted_rate, a.source) == (1, True, 189.0, "backboard")
-    assert usage == {"backboard_in": 120, "backboard_out": 20}
+    assert usage == {"backboard_in": 120, "backboard_out": 20, "backboard_extract": 140}
 
 
 def test_fallback_extract_unknown(monkeypatch):
@@ -305,3 +305,41 @@ def test_memory_without_key_is_a_noop():
     run = Run(run_id="r", prompt="p", started_at=datetime(2026, 10, 17), candidates=[CANDIDATE], calls=[CALL])
     assert agent_brain.remember_run(run) == 0
     assert agent_brain.recall_hotel_notes(CANDIDATE) == ""
+
+
+# --- agent LLM tokens ----------------------------------------------------------
+
+def _usage(inp, out, cache_read=0):
+    return {"model_usage": {"gemini-2.5-flash": {
+        "input": {"tokens": inp, "price": 0.0},
+        "input_cache_read": {"tokens": cache_read, "price": 0.0},
+        "output_total": {"tokens": out, "price": 0.0},
+    }}}
+
+
+def test_agent_llm_tokens_from_charging():
+    conv = {"metadata": {"charging": {"llm_usage": {
+        "irreversible_generation": _usage(900, 120, cache_read=300),
+        "initiated_generation": _usage(50, 10),
+    }}}}
+    assert agent_brain.agent_llm_tokens(conv) == 900 + 120 + 300 + 50 + 10
+
+
+def test_agent_llm_tokens_falls_back_to_transcript():
+    conv = {"metadata": {}, "transcript": [
+        {"role": "agent", "message": "Hi", "llm_usage": _usage(400, 15)},
+        {"role": "user", "message": "Hello", "llm_usage": None},
+        {"role": "agent", "message": "Thanks", "llm_usage": _usage(450, 10)},
+    ]}
+    assert agent_brain.agent_llm_tokens(conv) == 875
+
+
+def test_agent_llm_tokens_missing_everything():
+    assert agent_brain.agent_llm_tokens({}) == 0
+
+
+def test_add_agent_llm_tokens_sums_across_calls():
+    usage = {"backboard_in": 0, "backboard_out": 0, "agent_llm": 0}
+    for conv in ({"transcript": [{"llm_usage": _usage(100, 10)}]}, {"transcript": [{"llm_usage": _usage(200, 20)}]}):
+        agent_brain.add_agent_llm_tokens(conv, usage)
+    assert usage["agent_llm"] == 330

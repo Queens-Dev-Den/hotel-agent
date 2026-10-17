@@ -24,7 +24,7 @@ def test_full_mocked_run():
     assert [c.outcome for c in r.calls] == ["available"] * 3
     assert [a.available for a in r.availability] == [True] * 3
     assert r.email is not None
-    assert set(r.telemetry.stage_ms) == {"brain", "search", "call", "email"}
+    assert set(r.telemetry.stage_ms) == {"brain", "search", "recall", "call", "email"}
 
 
 def test_calls_run_in_parallel(monkeypatch):
@@ -113,3 +113,42 @@ def test_progress_events_in_order(monkeypatch):
     assert kinds[:4] == ["stage_start", "stage_done", "request", "stage_start"]
     assert kinds[-3:] == ["stage_start", "stage_done", "done"]
     assert [d["call"].candidate_rank for k, d in events if k == "call_done"] == [3, 2, 1]
+
+
+def test_memory_recalled_in_parallel_and_saved_after_email(monkeypatch):
+    monkeypatch.setattr(config, "MOCK_MODULES", ALL_MOCKED - {"brain"})
+    monkeypatch.setattr(pipeline, "_real_calls", lambda: True)
+    monkeypatch.setattr(pipeline, "_parse_prompt", lambda: pipeline._mock_parse_prompt)
+    order = []
+
+    def recall(candidate):
+        time.sleep(0.2)
+        return f"notes for {candidate.rank}"
+
+    real_build = pipeline.build_call_plan
+    monkeypatch.setattr(pipeline, "recall_hotel_notes", recall)
+    monkeypatch.setattr(pipeline, "build_call_plan",
+                        lambda req, c, run_id, hotel_notes="": order.append(hotel_notes) or real_build(req, c, run_id, hotel_notes))
+    monkeypatch.setattr(pipeline, "remember_run", lambda run: order.append("remember" if run.email else "too early"))
+
+    r = pipeline.run("x")
+
+    assert r.telemetry.stage_ms["recall"] < 500  # 3 x 0.2 s would be 600 ms in series
+    assert order == ["notes for 1", "notes for 2", "notes for 3", "remember"]
+
+
+@pytest.mark.parametrize("mocked,use_mock_hotel", [
+    ({"voice"}, False),   # fake calls: fake transcripts
+    (set(), True),        # real calls, but to the mock hotel numbers
+])
+def test_memory_never_saved_from_fake_or_mock_hotel_calls(monkeypatch, mocked, use_mock_hotel):
+    monkeypatch.setattr(config, "MOCK_MODULES", mocked)
+    monkeypatch.setattr(config, "USE_MOCK_HOTEL", use_mock_hotel)
+    assert pipeline._real_calls() is False
+
+
+def test_serpapi_key_not_logged_by_httpx():
+    import logging
+
+    import search_service  # noqa: F401  (sets the httpx logger level on import)
+    assert not logging.getLogger("httpx").isEnabledFor(logging.INFO)

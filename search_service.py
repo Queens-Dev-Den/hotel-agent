@@ -23,6 +23,8 @@ import config
 from contracts import HotelCandidate, HotelRequest
 
 log = logging.getLogger(__name__)
+# httpx logs every request URL at INFO, and SerpApi's api_key is in the query string
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 SERPAPI_URL = "https://serpapi.com/search.json"
 CACHE_DIR = Path(".cache/serpapi")
