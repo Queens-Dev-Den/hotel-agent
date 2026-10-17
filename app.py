@@ -151,6 +151,8 @@ div[data-testid="stTextInputRootElement"]:focus-within { border-color: #A78BFA !
 div[data-testid="stTextInputRootElement"] input { background: transparent !important; color: var(--text) !important;
   font-size: var(--fs-md) !important; padding-left: .95rem !important; caret-color: #C4B5FD; }
 div[data-testid="stTextInputRootElement"] input::placeholder { color: var(--faint) !important; opacity: 1; }
+/* Streamlit's "Press Enter to submit form" hint (Enter still submits) */
+[data-testid="InputInstructions"] { display: none !important; }
 .stApp [data-testid="stTextInput"] label p { color: var(--text) !important; }
 div[data-testid="stFormSubmitButton"] button {
   background: var(--primary) !important; border: 0 !important;
