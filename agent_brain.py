@@ -353,40 +353,83 @@ def fallback_extract(
 
 # --- Agent LLM tokens (ElevenLabs) ---------------------------------------------
 
-def _sum_llm_usage(llm_usage: dict | None) -> tuple[int, int]:
-    """LLMCategoryUsage or LLMUsage -> (input incl. cache, output) summed over every model."""
-    tokens_in = tokens_out = 0
-    if not llm_usage:
-        return 0, 0
-    # LLMCategoryUsage splits generations into categories; a bare LLMUsage has model_usage directly
-    categories = [llm_usage] if "model_usage" in llm_usage else [v for v in llm_usage.values() if isinstance(v, dict)]
-    for category in categories:
-        for model in (category.get("model_usage") or {}).values():
-            for key in ("input", "input_cache_read", "input_cache_write"):
-                tokens_in += (model.get(key) or {}).get("tokens", 0)
-            tokens_out += (model.get("output_total") or {}).get("tokens", 0)
-    return tokens_in, tokens_out
+_USAGE_KEYS = {"input": "input", "cache_read": "input_cache_read", "cache_write": "input_cache_write", "output": "output_total"}
+
+
+def _usage_breakdown(llm_usage: dict | None) -> dict[str, int]:
+    """One LLMUsage ({"model_usage": {...}}) -> tokens by kind, summed over every model."""
+    out = dict.fromkeys(_USAGE_KEYS, 0)
+    for model in ((llm_usage or {}).get("model_usage") or {}).values():
+        for kind, key in _USAGE_KEYS.items():
+            out[kind] += (model.get(key) or {}).get("tokens", 0)
+    return out
+
+
+def _category_usage(conversation: dict, order: tuple[str, ...]) -> dict[str, int]:
+    """Usage for the first charging category in `order` that has tokens; else per-turn usage."""
+    categories = ((conversation.get("metadata") or {}).get("charging") or {}).get("llm_usage") or {}
+    for name in order:
+        usage = _usage_breakdown(categories.get(name))
+        if sum(usage.values()):
+            return usage
+    total = dict.fromkeys(_USAGE_KEYS, 0)
+    for turn in conversation.get("transcript") or []:
+        for kind, n in _usage_breakdown(turn.get("llm_usage")).items():
+            total[kind] += n
+    return total
+
+
+def agent_llm_usage(conversation: dict) -> dict[str, int]:
+    """Agent LLM tokens for one call by kind (input, cache_read, cache_write, output),
+    from GET /v1/convai/conversations/{id}.
+
+    metadata.charging.llm_usage has initiated_generation (everything the LLM started,
+    including interrupted replies), which already contains irreversible_generation (what
+    was spoken). The ElevenLabs dashboard counts the spoken replies, so that comes first.
+    """
+    return _category_usage(conversation, ("irreversible_generation", "initiated_generation"))
 
 
 def agent_llm_tokens(conversation: dict) -> int:
-    """Total LLM tokens for one call, from GET /v1/convai/conversations/{id}.
+    """Headline agent tokens for one call: spoken replies, fresh input + output, no cache.
+    Matches the ElevenLabs dashboard."""
+    usage = agent_llm_usage(conversation)
+    return usage["input"] + usage["output"]
 
-    Prefers metadata.charging.llm_usage; falls back to summing transcript[].llm_usage.
+
+def agent_llm_context_tokens(conversation: dict) -> int:
+    """Everything the LLM processed for one call: every reply started, cache reads/writes included."""
+    return sum(_category_usage(conversation, ("initiated_generation", "irreversible_generation")).values())
+
+
+def add_agent_llm_tokens(conversation: dict, usage: dict[str, int] | None, rank: int | None = None) -> int:
+    """Add one call's tokens to Run.telemetry.tokens. Call once per call.
+
+    "agent_llm": the headline number (spoken replies, fresh input + output), matching the
+        ElevenLabs dashboard, split into "agent_llm_input" / "agent_llm_output".
+    "agent_llm_cache_read" / "agent_llm_cache_write": cached context on those replies
+        (not in the headline; billed at a fraction).
+    "agent_llm_context": everything the LLM processed, interrupted replies and cache included.
+    "agent_llm_credits": ElevenLabs LLM credits charged.
+    With `rank`, the same numbers are also kept per call as "call{rank}_<key>" for the UI.
     """
-    charging = ((conversation.get("metadata") or {}).get("charging") or {}).get("llm_usage")
-    tokens_in, tokens_out = _sum_llm_usage(charging)
-    if tokens_in + tokens_out == 0:
-        for turn in conversation.get("transcript") or []:
-            t_in, t_out = _sum_llm_usage(turn.get("llm_usage"))
-            tokens_in, tokens_out = tokens_in + t_in, tokens_out + t_out
-    return tokens_in + tokens_out
-
-
-def add_agent_llm_tokens(conversation: dict, usage: dict[str, int] | None) -> int:
-    """Add one call's agent LLM tokens to Run.telemetry.tokens["agent_llm"]. Call once per call."""
-    tokens = agent_llm_tokens(conversation)
+    spoken = agent_llm_usage(conversation)
+    tokens = spoken["input"] + spoken["output"]
+    charging = (conversation.get("metadata") or {}).get("charging") or {}
+    values = {
+        "agent_llm": tokens,
+        "agent_llm_input": spoken["input"],
+        "agent_llm_output": spoken["output"],
+        "agent_llm_cache_read": spoken["cache_read"],
+        "agent_llm_cache_write": spoken["cache_write"],
+        "agent_llm_context": agent_llm_context_tokens(conversation),
+        "agent_llm_credits": int(charging.get("llm_charge") or 0),
+    }
     if usage is not None:
-        usage["agent_llm"] = usage.get("agent_llm", 0) + tokens
+        for key, n in values.items():
+            usage[key] = usage.get(key, 0) + n
+            if rank is not None:
+                usage[f"call{rank}_{key}"] = n
     return tokens
 
 

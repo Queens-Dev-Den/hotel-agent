@@ -19,10 +19,10 @@ def make_run(run_id, minute, total_s, parse, extract, agent):
 
 def test_report_averages():
     out = token_report.report([make_run("run-aaaa1", 0, 200, 0, 0, 3000), make_run("run-bbbb2", 5, 180, 160, 200, 4000)])
-    assert "| run-aaaa | 200.0 | 0.0 | 4.0 | 0.9 | 150.0 | 0.9 | 0 | 0 | 0 | 3,000 |" in out
+    assert "| run-aaaa | 200.0 | 0.0 | 4.0 | 0.9 | 150.0 | 0.9 | 0 | 0 | 0 | 3,000 | 0 |" in out
     assert "| **avg of 2** | **190.0** |" in out
     assert "Backboard per session: avg 180 / 1,200 budget (max 360)." in out
-    assert "Agent LLM per run (3 parallel calls): avg 3,500." in out
+    assert "Agent LLM per run (3 parallel calls): avg 3,500 (matches the ElevenLabs dashboard); full context processed incl. cache: avg 0." in out
 
 
 def test_main_archives_latest_once(tmp_path, monkeypatch, capsys):
