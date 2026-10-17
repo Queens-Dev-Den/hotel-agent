@@ -297,3 +297,18 @@ def test_km_cost_zero_ranks_by_price_only(fake_api, monkeypatch):
                            for i, n in enumerate(("cheap-far", "near"))}
 
     assert [c.name for c in find_candidates(REQ)] == ["cheap-far"]
+
+
+def test_exclude_skips_hotels_already_called(fake_api):
+    fake_api["hotels"] = [prop("A", nightly=50), prop("B", nightly=60), prop("C", nightly=70), prop("D", nightly=80)]
+    fake_api["details"] = {"A": {"phone": "416-555-0101", "address": "1 King St"},
+                           "B": {"phone": "416-555-0102", "address": "2 King St"},
+                           "C": {"phone": "416-555-0101", "address": "3 King St"},  # same phone as A
+                           "D": {"phone": "416-555-0104", "address": "4 King St"}}
+    stats = {}
+
+    out = find_candidates(REQ, stats=stats, exclude={"A", "+14165550101"})
+
+    assert [c.name for c in out] == ["B", "D"]
+    assert [c.rank for c in out] == [1, 2]
+    assert stats["already_called"] == 2  # A by name, C by phone

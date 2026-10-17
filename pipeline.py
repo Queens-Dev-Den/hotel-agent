@@ -58,13 +58,15 @@ def _mock_parse_prompt(prompt: str, *, callback_email: str = "", usage=None) -> 
                         callback_email=callback_email)
 
 
-def _mock_find_candidates(request: HotelRequest, *, stats=None) -> list[HotelCandidate]:
-    return [
+def _mock_find_candidates(request: HotelRequest, *, stats=None, exclude=None) -> list[HotelCandidate]:
+    hotels = [
         HotelCandidate(rank=i, name=f"Mock Hotel {i}", address=f"{i} King St W, Toronto, ON",
                        phone_e164=f"+1416555010{i}", total_price=50.0 * i, source="mock",
                        booking_url="https://www.booking.com/", booking_source="Booking.com (fake)")
-        for i in (1, 2, 3)
+        for i in range(1, 7)
     ]
+    fresh = [h for h in hotels if not exclude or h.name not in exclude]
+    return [h.model_copy(update={"rank": i}) for i, h in enumerate(fresh[:3], start=1)]
 
 
 def _mock_place_call(plan: CallPlan) -> CallResult:
@@ -192,6 +194,53 @@ def _real_calls() -> bool:
     return not _mocked("voice") and not _mocked("brain") and not config.USE_MOCK_HOTEL
 
 
+def _got_room(a: Availability | None) -> bool:
+    """A hotel confirmed a room and gave a rate: the run has its answer."""
+    return a is not None and a.available is True and a.quoted_rate is not None
+
+
+def _retry_round(r: Run, emit: Emit, dialed: dict[int, str]) -> None:
+    """Nobody in the first round confirmed a room with a rate: search the next cheapest
+    hotels (skipping those already called) and call them all at once. Ranks continue
+    after the first round's, so the tool server, email and UI keep the rounds apart."""
+    called = {c.name for c in r.candidates} | {c.phone_e164 for c in r.candidates}
+    stats: dict[str, int] = {}
+    with _stage(r, "retry", emit):
+        try:
+            more = _find_candidates()(r.request, stats=stats, exclude=called)
+        except RuntimeError as exc:  # nothing new and callable nearby
+            log.info("retry round: %s", exc)
+            more = []
+        r.telemetry.tokens["serpapi_searches"] = (r.telemetry.tokens.get("serpapi_searches", 0)
+                                                  + stats.get("serpapi_searches", 0))
+        if _dials_test_numbers():
+            more = more[: len(config.MOCK_HOTEL_PHONES)]
+        if not more:
+            log.info("retry round: no new hotels to call")
+            return
+        start = max(c.rank for c in r.candidates)
+        more = [c.model_copy(update={"rank": start + i}) for i, c in enumerate(more, start=1)]
+        r.candidates = r.candidates + more
+        emit("candidates", {"candidates": r.candidates})
+
+        notes = _recall_notes(more)
+        plans = [build_call_plan(r.request, c, r.run_id, hotel_notes=n) for c, n in zip(more, notes)]
+        if not _mocked("voice"):
+            for c in more:
+                tool_server.register_run(r, c)
+        dial_plans = _dial_targets(plans)
+        dialed.update({p.candidate.rank: p.candidate.phone_e164 for p in dial_plans})
+        emit("dialing", {"numbers": dict(dialed)})
+        new_calls = _call_all(dial_plans, emit, lambda call: _count_agent_tokens(r, call, emit))
+        r.calls = r.calls + new_calls
+
+        # Resolve only the new hotels, so first-round fallbacks don't spend Backboard tokens twice
+        round2 = r.model_copy(update={"candidates": more, "calls": new_calls, "availability": []})
+        tool_server.resolve_availability(round2, fallback=fallback_extract, usage=r.telemetry.tokens)
+        r.availability = r.availability + round2.availability
+        _sync_outcomes(r)
+
+
 def _sync_outcomes(r: Run) -> None:
     """A person answered and a later fallback found a definite answer: make the call's outcome
     match it, so the UI tag never says "no room" next to a quoted rate."""
@@ -269,13 +318,16 @@ def run(prompt: str, *, callback_email: str | None = None, on_event: Emit | None
             tool_server.register_run(r, c)
 
     dial_plans = _dial_targets(plans)
-    emit("dialing", {"numbers": {p.candidate.rank: p.candidate.phone_e164 for p in dial_plans}})
+    dialed = {p.candidate.rank: p.candidate.phone_e164 for p in dial_plans}
+    emit("dialing", {"numbers": dict(dialed)})
     with _stage(r, "call", emit):
         r.calls = _call_all(dial_plans, emit, lambda call: _count_agent_tokens(r, call, emit))
 
     # tool result -> call's own answer -> transcript regex -> Backboard (WS4)
     tool_server.resolve_availability(r, fallback=fallback_extract, usage=r.telemetry.tokens)
     _sync_outcomes(r)
+    if config.RETRY_IF_NO_ROOM and not any(_got_room(a) for a in r.availability):
+        _retry_round(r, emit, dialed)
     emit("tokens", {"tokens": dict(r.telemetry.tokens)})
 
     with _stage(r, "email", emit):

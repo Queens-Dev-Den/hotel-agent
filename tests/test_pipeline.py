@@ -244,3 +244,89 @@ def test_outcome_follows_the_resolved_answer():
                           Availability(candidate_rank=3, available=None, source="transcript")])
     pipeline._sync_outcomes(r)
     assert [c.outcome for c in r.calls] == ["available", "voicemail", "unavailable"]
+
+
+# --- retry round: call 3 more only if nobody in round 1 confirmed a room with a rate ---
+
+from contracts import Availability, CallResult  # noqa: E402
+
+
+def _answer(available, rate=None):
+    """A fake call where the hotel says `available` (True/False/None) at `rate`."""
+    def place(plan):
+        rank = plan.candidate.rank
+        return CallResult(
+            candidate_rank=rank, conversation_id=f"mock-{plan.run_id}-{rank}", duration_s=1.0,
+            outcome="available" if available else "unavailable",
+            availability=Availability(candidate_rank=rank, available=available, quoted_rate=rate, source="tool"),
+            transcript="Agent: Hi.\nHotel: ...",
+        )
+    return place
+
+
+def _by_rank(answers):
+    """answers: {rank: place_fn}."""
+    return lambda plan: answers[plan.candidate.rank](plan)
+
+
+def test_retry_calls_three_new_hotels_when_round_one_finds_nothing(monkeypatch):
+    sold_out = _answer(False)
+    monkeypatch.setattr(pipeline, "_mock_place_call",
+                        _by_rank({1: sold_out, 2: sold_out, 3: sold_out, 4: sold_out, 5: _answer(True, 120.0), 6: sold_out}))
+    events = []
+    r = pipeline.run("x", on_event=lambda kind, data: events.append(kind))
+
+    assert [c.rank for c in r.candidates] == [1, 2, 3, 4, 5, 6]
+    assert [c.name for c in r.candidates[3:]] == ["Mock Hotel 4", "Mock Hotel 5", "Mock Hotel 6"]  # not re-called
+    assert [c.candidate_rank for c in r.calls] == [1, 2, 3, 4, 5, 6]
+    assert [a.candidate_rank for a in r.availability] == [1, 2, 3, 4, 5, 6]
+    assert r.availability[4].available is True and r.availability[4].quoted_rate == 120.0
+    assert "retry" in r.telemetry.stage_ms
+    assert r.email is not None and events.count("done") == 1
+
+
+def test_no_retry_when_one_hotel_confirms_a_rate(monkeypatch):
+    sold_out = _answer(False)
+    monkeypatch.setattr(pipeline, "_mock_place_call",
+                        _by_rank({1: sold_out, 2: _answer(True, 99.0), 3: sold_out}))
+    r = pipeline.run("x")
+
+    assert [c.rank for c in r.candidates] == [1, 2, 3]
+    assert "retry" not in r.telemetry.stage_ms
+
+
+def test_yes_without_a_rate_still_retries(monkeypatch):
+    monkeypatch.setattr(pipeline, "_mock_place_call",
+                        _by_rank({1: _answer(True), 2: _answer(None), 3: _answer(False),
+                                  4: _answer(False), 5: _answer(False), 6: _answer(False)}))
+    r = pipeline.run("x")
+    assert len(r.calls) == 6
+
+
+def test_retry_can_be_turned_off(monkeypatch):
+    monkeypatch.setattr(config, "RETRY_IF_NO_ROOM", False)
+    monkeypatch.setattr(pipeline, "_mock_place_call", _answer(False))
+    assert len(pipeline.run("x").calls) == 3
+
+
+def test_retry_with_no_new_hotels_still_emails(monkeypatch):
+    monkeypatch.setattr(pipeline, "_mock_place_call", _answer(False))
+    real = pipeline._mock_find_candidates
+
+    def nothing_new(request, *, stats=None, exclude=None):
+        if exclude:
+            raise RuntimeError("No callable listings")
+        return real(request)
+
+    monkeypatch.setattr(pipeline, "_mock_find_candidates", nothing_new)
+    r = pipeline.run("x")
+    assert len(r.calls) == 3 and r.email is not None and "retry" in r.telemetry.stage_ms
+
+
+def test_retry_does_not_rerun_round_one_fallbacks(monkeypatch):
+    unclear = _answer(None)
+    monkeypatch.setattr(pipeline, "_mock_place_call", unclear)
+    seen = []
+    monkeypatch.setattr(pipeline, "fallback_extract", lambda t, rank, usage=None: seen.append(rank))
+    pipeline.run("x")
+    assert sorted(seen) == [1, 2, 3, 4, 5, 6]  # each hotel's fallback once, not round 1 twice
