@@ -13,8 +13,9 @@ from __future__ import annotations
 import logging
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FutureTimeout
+from collections.abc import Callable
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 
 import config
@@ -33,6 +34,16 @@ log = logging.getLogger(__name__)
 
 # Extra wait on top of MAX_CALL_DURATION_S for dial time and the transcript fetch
 JOIN_GRACE_S = 30
+# Seconds the fake call takes per rank (0 in tests; the UI sets it so mock runs look live)
+MOCK_CALL_DELAY_S = 0.0
+
+# Progress callback: on_event(kind, data). Kinds: stage_start {name}, stage_done {name, ms},
+# request {request}, candidates {candidates}, call_start {rank}, call_done {call}, done {run}
+Emit = Callable[[str, dict], None]
+
+
+def _no_emit(kind: str, data: dict) -> None:
+    pass
 
 
 # --- fakes (MOCK_MODULES) --------------------------------------------------------
@@ -53,11 +64,12 @@ def _mock_find_candidates(request: HotelRequest, *, stats=None) -> list[HotelCan
 
 def _mock_place_call(plan: CallPlan) -> CallResult:
     rank = plan.candidate.rank
+    time.sleep(MOCK_CALL_DELAY_S * rank)
     return CallResult(
         candidate_rank=rank,
         conversation_id=f"mock-{plan.run_id}-{rank}",
         outcome="available",
-        duration_s=0.0,
+        duration_s=MOCK_CALL_DELAY_S * rank,
         availability=Availability(candidate_rank=rank, available=True, quoted_rate=99.0, source="tool"),
         transcript="Agent: Hi, I'm calling to check room availability please.\nHotel: Yes, we have a room.",
     )
@@ -122,28 +134,45 @@ def _dial_targets(plans: list[CallPlan]) -> list[CallPlan]:
     ]
 
 
-def _call_all(plans: list[CallPlan]) -> list[CallResult]:
-    """Every call at once. Each is capped; one slow or failing call never blocks the rest."""
+def _call_all(plans: list[CallPlan], emit: Emit = _no_emit) -> list[CallResult]:
+    """Every call at once. Each is capped; one slow or failing call never blocks the rest.
+    Results are reported as each call ends, and returned in candidate order."""
     place_call = _place_call()
     cap = config.MAX_CALL_DURATION_S + JOIN_GRACE_S
     pool = ThreadPoolExecutor(max_workers=len(plans))
     started = time.monotonic()
-    futures = [pool.submit(place_call, plan) for plan in plans]
-    results = []
-    for plan, future in zip(plans, futures):
-        rank = plan.candidate.rank
-        try:
-            results.append(future.result(timeout=max(cap - (time.monotonic() - started), 0)))
-        except FutureTimeout:
-            log.warning("call %d hit the %ds cap", rank, cap)
-            results.append(CallResult(candidate_rank=rank, conversation_id="", outcome="error",
-                                      duration_s=float(cap)))
-        except Exception as exc:
-            log.warning("call %d failed: %s", rank, exc)
-            results.append(CallResult(candidate_rank=rank, conversation_id="", outcome="error",
-                                      duration_s=round(time.monotonic() - started, 1)))
+    pending = {pool.submit(place_call, plan): plan.candidate.rank for plan in plans}
+    for plan in plans:
+        emit("call_start", {"rank": plan.candidate.rank})
+
+    results: dict[int, CallResult] = {}
+    while pending:
+        done, _ = wait(pending, timeout=max(started + cap - time.monotonic(), 0), return_when=FIRST_COMPLETED)
+        if not done:
+            break
+        for future in done:
+            rank = pending.pop(future)
+            try:
+                results[rank] = future.result()
+            except Exception as exc:
+                log.warning("call %d failed: %s", rank, exc)
+                results[rank] = CallResult(candidate_rank=rank, conversation_id="", outcome="error",
+                                           duration_s=round(time.monotonic() - started, 1))
+            emit("call_done", {"call": results[rank]})
+    for rank in pending.values():
+        log.warning("call %d hit the %ds cap", rank, cap)
+        results[rank] = CallResult(candidate_rank=rank, conversation_id="", outcome="error", duration_s=float(cap))
+        emit("call_done", {"call": results[rank]})
     pool.shutdown(wait=False, cancel_futures=True)  # don't wait on a hung call thread
-    return results
+    return [results[plan.candidate.rank] for plan in plans]
+
+
+@contextmanager
+def _stage(r: Run, name: str, emit: Emit):
+    emit("stage_start", {"name": name})
+    with telemetry.stage(r, name):
+        yield
+    emit("stage_done", {"name": name, "ms": r.telemetry.stage_ms[name]})
 
 
 def _availability(run: Run, call: CallResult, tool_results: dict[int, Availability]) -> Availability:
@@ -166,8 +195,12 @@ def _availability(run: Run, call: CallResult, tool_results: dict[int, Availabili
     return fallback_extract(call.transcript, rank, usage=run.telemetry.tokens) or unknown
 
 
-def run(prompt: str, *, callback_email: str | None = None) -> Run:
-    """One prompt in, one email out. Returns the finished Run (also in run_telemetry.json)."""
+def run(prompt: str, *, callback_email: str | None = None, on_event: Emit | None = None) -> Run:
+    """One prompt in, one email out. Returns the finished Run (also in run_telemetry.json).
+
+    `on_event` gets live progress (see Emit) for the UI.
+    """
+    emit = on_event or _no_emit
     r = Run(run_id=uuid.uuid4().hex[:12], prompt=prompt, started_at=datetime.now(timezone.utc))
     telemetry.save(r)
 
@@ -175,14 +208,16 @@ def run(prompt: str, *, callback_email: str | None = None) -> Run:
         import tool_server  # must be up before any call can fire record_availability
         tool_server.start_in_background(config.TOOL_SERVER_PORT)
 
-    with telemetry.stage(r, "brain"):
+    with _stage(r, "brain", emit):
         r.request = _parse_prompt()(prompt, callback_email=callback_email or config.RECEIPT_TO_EMAIL,
                                     usage=r.telemetry.tokens)
+    emit("request", {"request": r.request})
 
     search_stats: dict[str, int] = {}
-    with telemetry.stage(r, "search"):
+    with _stage(r, "search", emit):
         r.candidates = _find_candidates()(r.request, stats=search_stats)
     log.info("search dropped: %s", search_stats)
+    emit("candidates", {"candidates": r.candidates})
 
     from agent_brain import build_call_plan
     plans = [build_call_plan(r.request, c, r.run_id) for c in r.candidates]
@@ -190,12 +225,13 @@ def run(prompt: str, *, callback_email: str | None = None) -> Run:
         for c in r.candidates:
             tool_server.register_run(r, c)
 
-    with telemetry.stage(r, "call"):
-        r.calls = _call_all(_dial_targets(plans))
+    with _stage(r, "call", emit):
+        r.calls = _call_all(_dial_targets(plans), emit)
 
     tool_results = {} if _mocked("voice") else tool_server.results_for(r.run_id)
     r.availability = [_availability(r, call, tool_results) for call in r.calls]
 
-    with telemetry.stage(r, "email"):
+    with _stage(r, "email", emit):
         _send()(r)
+    emit("done", {"run": r})
     return r

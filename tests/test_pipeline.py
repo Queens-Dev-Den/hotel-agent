@@ -110,3 +110,20 @@ def test_availability_falls_back_to_transcript_then_backboard(monkeypatch):
     assert pipeline._availability(r, call, {}) is backboard  # regex can't tell, so Backboard
     no_transcript = call.model_copy(update={"transcript": None})
     assert pipeline._availability(r, no_transcript, {}).available is None
+
+
+def test_progress_events_in_order(monkeypatch):
+    real = pipeline._mock_place_call
+
+    def staggered(plan):  # hotel 3 finishes first
+        time.sleep(0.05 * (4 - plan.candidate.rank))
+        return real(plan)
+
+    monkeypatch.setattr(pipeline, "_mock_place_call", staggered)
+    events = []
+    pipeline.run("x", on_event=lambda kind, data: events.append((kind, data)))
+
+    kinds = [k for k, _ in events]
+    assert kinds[:4] == ["stage_start", "stage_done", "request", "stage_start"]
+    assert kinds[-3:] == ["stage_start", "stage_done", "done"]
+    assert [d["call"].candidate_rank for k, d in events if k == "call_done"] == [3, 2, 1]
