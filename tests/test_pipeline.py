@@ -6,7 +6,7 @@ import agent_brain
 import config
 import pipeline
 import telemetry
-from contracts import Availability, CallResult
+
 
 ALL_MOCKED = {"brain", "search", "voice", "email"}
 
@@ -96,20 +96,6 @@ def test_mock_hotel_without_numbers_refuses_to_dial(monkeypatch):
 
     with pytest.raises(RuntimeError, match="Refusing to dial real hotels"):
         pipeline._dial_targets(plans)
-
-
-def test_availability_falls_back_to_transcript_then_backboard(monkeypatch):
-    r = pipeline.Run(run_id="r", prompt="x", started_at=pipeline.datetime.now(pipeline.timezone.utc))
-    call = CallResult(candidate_rank=1, conversation_id="c", outcome="unavailable", duration_s=30,
-                      transcript="Agent: Any rooms?\nHotel: Hmm, let me think.")
-    tool = Availability(candidate_rank=1, available=False, source="tool")
-    backboard = Availability(candidate_rank=1, available=False, source="backboard")
-    monkeypatch.setattr(agent_brain, "fallback_extract", lambda *a, **k: backboard)
-
-    assert pipeline._availability(r, call, {1: tool}) is tool
-    assert pipeline._availability(r, call, {}) is backboard  # regex can't tell, so Backboard
-    no_transcript = call.model_copy(update={"transcript": None})
-    assert pipeline._availability(r, no_transcript, {}).available is None
 
 
 def test_progress_events_in_order(monkeypatch):

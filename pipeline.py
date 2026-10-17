@@ -20,6 +20,8 @@ from datetime import date, datetime, timedelta, timezone
 
 import config
 import telemetry
+import tool_server
+from agent_brain import build_call_plan, fallback_extract
 from contracts import (
     Availability,
     CallPlan,
@@ -175,26 +177,6 @@ def _stage(r: Run, name: str, emit: Emit):
     emit("stage_done", {"name": name, "ms": r.telemetry.stage_ms[name]})
 
 
-def _availability(run: Run, call: CallResult, tool_results: dict[int, Availability]) -> Availability:
-    """Tool result first, then the call's own, then transcript regex, then Backboard."""
-    rank = call.candidate_rank
-    found = tool_results.get(rank) or call.availability
-    if found is not None:
-        return found
-    unknown = Availability(candidate_rank=rank, available=None, source="transcript")
-    if not call.transcript:
-        return unknown
-    try:
-        from extractor import from_transcript
-        found = from_transcript(call.transcript, rank)
-        if found.available is not None:
-            return found
-    except ImportError:
-        pass
-    from agent_brain import fallback_extract
-    return fallback_extract(call.transcript, rank, usage=run.telemetry.tokens) or unknown
-
-
 def run(prompt: str, *, callback_email: str | None = None, on_event: Emit | None = None) -> Run:
     """One prompt in, one email out. Returns the finished Run (also in run_telemetry.json).
 
@@ -204,8 +186,7 @@ def run(prompt: str, *, callback_email: str | None = None, on_event: Emit | None
     r = Run(run_id=uuid.uuid4().hex[:12], prompt=prompt, started_at=datetime.now(timezone.utc))
     telemetry.save(r)
 
-    if not _mocked("voice"):
-        import tool_server  # must be up before any call can fire record_availability
+    if not _mocked("voice"):  # must be up before any call can fire record_availability
         tool_server.start_in_background(config.TOOL_SERVER_PORT)
 
     with _stage(r, "brain", emit):
@@ -219,7 +200,6 @@ def run(prompt: str, *, callback_email: str | None = None, on_event: Emit | None
     log.info("search dropped: %s", search_stats)
     emit("candidates", {"candidates": r.candidates})
 
-    from agent_brain import build_call_plan
     plans = [build_call_plan(r.request, c, r.run_id) for c in r.candidates]
     if not _mocked("voice"):
         for c in r.candidates:
@@ -228,8 +208,8 @@ def run(prompt: str, *, callback_email: str | None = None, on_event: Emit | None
     with _stage(r, "call", emit):
         r.calls = _call_all(_dial_targets(plans), emit)
 
-    tool_results = {} if _mocked("voice") else tool_server.results_for(r.run_id)
-    r.availability = [_availability(r, call, tool_results) for call in r.calls]
+    # tool result -> call's own answer -> transcript regex -> Backboard (WS4)
+    tool_server.resolve_availability(r, fallback=fallback_extract, usage=r.telemetry.tokens)
 
     with _stage(r, "email", emit):
         _send()(r)
