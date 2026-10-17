@@ -7,9 +7,9 @@
 | Branch | Owner | May edit — nothing else |
 |---|---|---|
 | `t1/richard-search` | Richard (T1) | `search_service.py`, `pipeline.py`, `main.py`, `app.py`, `telemetry.py`, `tests/test_search.py`, `docs/ws1-discovery.md` |
-| `t2/isaac-brain` | Isaac (T2) | `agent_brain.py`, `tests/test_brain.py`, `docs/ws2-backboard.md` |
+| `t2/zach-brain` | Zach (T2) | `agent_brain.py`, `tests/test_brain.py`, `docs/ws2-backboard.md` |
 | `t3/jordan-voice` | Jordan (T3) | `voice_agent.py`, `agents/` (booking + mock hotel prompts), `tests/test_voice.py`, `docs/ws3-voice.md` |
-| `t4/zach-email` | Zach (T4) | `email_service.py`, `extractor.py`, `tool_server.py`, `tests/test_email.py`, `docs/ws4-email.md` |
+| `t4/isaac-email` | Isaac (T4) | `email_service.py`, `extractor.py`, `tool_server.py`, `tests/test_email.py`, `docs/ws4-email.md` |
 | `contract/<what>` | anyone, all 4 agree in chat | **Shared files:** `contracts.py`, `mocks.py`, `config.py`, `requirements.txt`, `.env.example`, `.gitattributes`, `README.md`, `docs/architecture.md`, `docs/integration-and-demo.md`, `docs/git-workflow.md` |
 
 - Shared files are written **once in Phase 0** and then frozen. A change to one is a tiny `contract/*` PR, merged straight away, and everyone syncs right after.
@@ -81,7 +81,7 @@ Merge to `main` as soon as your tests pass. Small and often beats one big merge.
 | Gate | Time | What must be on `main` | Who merges |
 |---|---|---|---|
 | **G0** | 10:30 | Phase 0 tree, contracts, mocks. All 4 branches created from this commit. | Jordan |
-| **G1 skeleton** | 12:30 | T4 `tool_server` + `email_service` real. T3 `place_call` real against the mock hotel. T1/T2 may still be mocks. | Zach, then Jordan |
+| **G1 skeleton** | 12:30 | T4 `tool_server` + `email_service` real. T3 `place_call` real against the mock hotel. T1/T2 may still be mocks. | Isaac, then Jordan |
 | **G2 Phase 1 exit** | 13:00 | Every module's first real version, with its unit tests passing | all |
 | **G3 integration** | 15:30 | `MOCK_MODULES` empty. 3 green runs in a row against the mock hotel. | Richard (owns `pipeline.py`) |
 | **G4 freeze** | 16:45 | Tag `v-final`. Bug fixes after this only with the whole team's OK. | Jordan |
