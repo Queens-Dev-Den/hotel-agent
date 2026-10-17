@@ -179,7 +179,8 @@ def _regex_parse(prompt: str, today: date) -> dict | None:
     if not city_m:
         return None
     city = city_m["city"].strip(" .'-")
-    if not city:
+    # Descriptions like "the capital of Canada" aren't city names; let Backboard resolve them
+    if not city or len(city.split()) > 3 or re.match(r"(?:the|a|an|my|our|some)\b", city, re.I):
         return None
     # Rest of the prompt minus the city, so a city like "Mayfair" can't match a month
     rest = prompt[: city_m.start("city")] + " " + prompt[city_m.end("city"):]

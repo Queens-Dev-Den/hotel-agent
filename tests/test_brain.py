@@ -85,6 +85,12 @@ def test_no_city_uses_backboard(monkeypatch):
     assert usage == {"backboard_in": 60, "backboard_out": 25, "agent_llm": 0}
 
 
+@pytest.mark.parametrize("prompt", ["a hotel in the capital of Canada", "somewhere in a big city near the lake"])
+def test_vague_city_goes_to_backboard(prompt):
+    with pytest.raises(ValueError):  # no Backboard in tests, so the fallback can't resolve it
+        parse(prompt)
+
+
 def test_regex_path_spends_no_tokens(monkeypatch):
     def boom(*a, **k):
         raise AssertionError("Backboard should not be called")
