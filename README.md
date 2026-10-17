@@ -17,7 +17,7 @@ MOCK_MODULES=voice,email python main.py "cheapest hotel in Toronto tonight"   # 
 
 The UI sidebar has **Fake calls / Fake email / Fake search** toggles. Calls and email are faked by default, so nothing dials or sends. Real search needs `SERPAPI_API_KEY` (about 9 credits per run). Turn on Fake search to test without one. With real calls on, `USE_MOCK_HOTEL=true` (the default) dials `MOCK_HOTEL_PHONES` instead of the real hotels.
 
-**What it does:** one prompt in, then the 3 cheapest hotels are called **at the same time** by an ElevenLabs voice agent that asks whether a room is available for the dates. **It never books.** One email goes out with each hotel's availability and the **full transcript of every call**.
+**What it does:** one prompt in, then the 3 cheapest hotels are called **at the same time** by an ElevenLabs voice agent that asks whether a room is available for the dates. **It never books.** One email goes out highlighting the **cheapest hotel with a room**, with that call's **full transcript**, plus a one-line status for the other hotels called.
 
 | Doc | Owner | Covers |
 |---|---|---|
