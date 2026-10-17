@@ -164,8 +164,7 @@ def _verdict(run) -> str:
             said += f", quoted **${a.quoted_rate:.0f}/night** (online: ${online:.0f}/night)"
         lines.append(said + ".")
         if a.reservation_number:
-            lines.append(f"⚠️ The hotel issued reservation **#{a.reservation_number}**, but no booking was "
-                         "intended. Call them to cancel if you don't want it.")
+            lines.append(f"🧾 Reservation **#{a.reservation_number}**")
         links = _links(best)
         lines.append(f"{links} · 📞 `{best.phone_e164}` · {best.address}" if links else
                      f"📞 `{best.phone_e164}` · {best.address}")
