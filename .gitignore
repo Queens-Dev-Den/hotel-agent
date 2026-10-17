@@ -1,0 +1,39 @@
+# Secrets — never commit real keys; copy .env.example to .env instead
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Run artifacts (regenerated every run)
+run_telemetry.json
+*.log
+transcripts/
+
+# Tunnels
+.ngrok/
+ngrok.yml
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
