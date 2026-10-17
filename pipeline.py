@@ -169,6 +169,12 @@ def _call_all(plans: list[CallPlan], emit: Emit = _no_emit) -> list[CallResult]:
     return [results[plan.candidate.rank] for plan in plans]
 
 
+def _real_calls() -> bool:
+    """True only when the calls really reached the hotels in run.candidates. Memories are
+    keyed by the hotel's phone, so fake or mock-hotel transcripts must never be saved."""
+    return not _mocked("voice") and not _mocked("brain") and not config.USE_MOCK_HOTEL
+
+
 def _recall_notes(candidates: list[HotelCandidate]) -> list[str]:
     """Backboard memory of past calls to each hotel, fetched in parallel. "" when none."""
     if _mocked("brain") or not candidates:
@@ -223,7 +229,7 @@ def run(prompt: str, *, callback_email: str | None = None, on_event: Emit | None
 
     with _stage(r, "email", emit):
         _send()(r)
-    if not _mocked("brain"):
+    if _real_calls():
         remember_run(r)  # after the email so it never delays the result; never raises
     emit("done", {"run": r})
     return r

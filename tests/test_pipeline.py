@@ -117,6 +117,7 @@ def test_progress_events_in_order(monkeypatch):
 
 def test_memory_recalled_in_parallel_and_saved_after_email(monkeypatch):
     monkeypatch.setattr(config, "MOCK_MODULES", ALL_MOCKED - {"brain"})
+    monkeypatch.setattr(pipeline, "_real_calls", lambda: True)
     monkeypatch.setattr(pipeline, "_parse_prompt", lambda: pipeline._mock_parse_prompt)
     order = []
 
@@ -134,3 +135,20 @@ def test_memory_recalled_in_parallel_and_saved_after_email(monkeypatch):
 
     assert r.telemetry.stage_ms["recall"] < 500  # 3 x 0.2 s would be 600 ms in series
     assert order == ["notes for 1", "notes for 2", "notes for 3", "remember"]
+
+
+@pytest.mark.parametrize("mocked,use_mock_hotel", [
+    ({"voice"}, False),   # fake calls: fake transcripts
+    (set(), True),        # real calls, but to the mock hotel numbers
+])
+def test_memory_never_saved_from_fake_or_mock_hotel_calls(monkeypatch, mocked, use_mock_hotel):
+    monkeypatch.setattr(config, "MOCK_MODULES", mocked)
+    monkeypatch.setattr(config, "USE_MOCK_HOTEL", use_mock_hotel)
+    assert pipeline._real_calls() is False
+
+
+def test_serpapi_key_not_logged_by_httpx():
+    import logging
+
+    import search_service  # noqa: F401  (sets the httpx logger level on import)
+    assert not logging.getLogger("httpx").isEnabledFor(logging.INFO)
