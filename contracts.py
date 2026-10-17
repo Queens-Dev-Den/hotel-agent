@@ -51,6 +51,7 @@ class ToolAvailabilityRequest(BaseModel):
     available: bool
     quoted_rate: str | None = None  # raw, as spoken
     notes: str = ""
+    reservation_number: str | None = None  # only if the hotel volunteers one; we never book
 
 
 class Availability(BaseModel):
@@ -59,6 +60,7 @@ class Availability(BaseModel):
     quoted_rate: float | None = None
     notes: str = ""
     source: Literal["tool", "transcript", "backboard"]
+    reservation_number: str | None = None  # only if the hotel volunteers one; we never book
 
 
 class CallResult(BaseModel):
@@ -77,6 +79,7 @@ class HotelSection(BaseModel):
     availability: bool | None
     quoted_rate: float | None = None
     transcript: str | None = None
+    reservation_number: str | None = None  # only if the hotel volunteers one; we never book
 
 
 class EmailPayload(BaseModel):
