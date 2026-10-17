@@ -59,15 +59,28 @@ LISTEN_FIRST_LINE = (
 )
 
 
+# From live tests: brand names read as "wrong number", half sentences and misheard
+# greetings ("hi" -> "bye") made the agent ask to repeat or hang up early.
+CALL_RULES = (
+    "\n- If they answer with a different or brand name, or a central reservations line, carry on: ask about {{hotel_name}}."
+    "\n- If speech is cut off, noisy or unclear, stay silent and let them continue. Ask them to repeat only once, "
+    "after they've clearly stopped. If a menu is unclear, press 0."
+    '\n- Only end the call early if they clearly refuse to help or hang up; a single "bye" at the very start '
+    "is probably misheard, so ask your question once."
+)
+
+
 def _agent_override(plan: CallPlan) -> dict:
     """Prompt + first message for this call.
 
-    With VOICE_LISTEN_FIRST the agent stays silent on pickup (hotels and phone menus
-    always speak first) and says the plan's opener as its first reply instead.
+    CALL_RULES are always appended. With VOICE_LISTEN_FIRST the agent stays silent on
+    pickup (hotels and phone menus always speak first) and says the plan's opener as
+    its first reply instead.
     """
+    prompt = plan.system_prompt + CALL_RULES
     if not (config.VOICE_LISTEN_FIRST and plan.first_message):
-        return {"prompt": {"prompt": plan.system_prompt}, "first_message": plan.first_message}
-    prompt = plan.system_prompt + LISTEN_FIRST_LINE.format(opener=plan.first_message)
+        return {"prompt": {"prompt": prompt}, "first_message": plan.first_message}
+    prompt += LISTEN_FIRST_LINE.format(opener=plan.first_message)
     return {"prompt": {"prompt": prompt}, "first_message": ""}
 
 
