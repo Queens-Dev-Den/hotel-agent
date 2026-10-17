@@ -110,7 +110,7 @@ def estimate_tokens(text: str) -> int:
 # --- Backboard -----------------------------------------------------------------
 
 BACKBOARD_DEFAULT_URL = "https://app.backboard.io/api"
-BACKBOARD_DEFAULT_MODEL = "openai/gpt-4o-mini"  # "<llm_provider>/<model_name>"
+BACKBOARD_DEFAULT_MODEL = "google/gemini-2.5-flash-lite"  # "<llm_provider>/<model_name>"
 
 
 def _backboard_complete(system: str, user: str, max_tokens: int) -> tuple[str, int, int]:

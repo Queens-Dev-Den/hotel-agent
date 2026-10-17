@@ -26,11 +26,25 @@ There is no guest name any more, since nothing is booked.
 ## Phase tasks
 
 ### Phase 0 (09:45–10:30)
-- [ ] Claim the Backboard hackathon tier with promo code `TECHTO7327`.
-- [ ] Auth works from the terminal.
-- [ ] Measure time to first token for 2–3 cheap models and record the numbers here.
-- [ ] Check whether Backboard exposes an OpenAI-compatible endpoint. Note the result for the architecture critique.
-- [ ] Gate: one Backboard completion from the terminal, with its latency recorded.
+- [x] Claim the Backboard hackathon tier with promo code `TECHTO7327`. The free credit alone only covers Memory & RAG, not chat.
+- [x] Auth works from the terminal.
+- [x] Measure latency for 2–3 cheap models and record the numbers here (see below).
+- [x] Check whether Backboard exposes an OpenAI-compatible endpoint. **No.** It has its own `POST /threads/messages` API (`X-API-Key` header, `llm_provider` + `model_name` per request, `system_prompt` per run, `input_tokens`/`output_tokens` in the reply). There's no max-output-tokens parameter, and errors such as billing or a bad model name come back as HTTP 200 with `status: FAILED`. Model list: `GET /models` (paginated, ~16k entries).
+- [x] Gate: one Backboard completion from the terminal, with its latency recorded.
+
+#### Latency results (2026-10-17, `python agent_brain.py <provider/model ...>`)
+
+Full round trip for a tiny JSON reply (non-streaming), two runs each:
+
+| Model | Run 1 | Run 2 | Tokens in / out | Notes |
+|---|---|---|---|---|
+| `google/gemini-2.5-flash-lite` | 1,277 ms | 1,324 ms | 36 / 5 | **Default.** Fewest tokens, clean JSON |
+| `openai/gpt-4o-mini` | 1,070 ms | 1,529 ms | 41 / 6 | Clean JSON |
+| `openai/gpt-4.1-nano` | 1,172 ms | 1,470 ms | 41 / 6 | Clean JSON |
+| `anthropic/claude-haiku-4-5-20251001` | 1,185 ms | 1,330 ms | 81 / 13 | Wraps JSON in a code fence, 2× the tokens |
+| `cerebras/meta-llama/llama-3.1-8b-instruct` | failed | failed | — | No routable endpoint |
+
+Every model takes 1.1–1.5 s through Backboard, far above the 400 ms bar in [architecture decision #1](architecture.md#key-decisions-changes-from-the-original-brief). That confirms keeping Backboard out of the live call loop. It's a good number for the deck.
 
 ### Phase 1 (10:30–13:00)
 - [ ] `parse_prompt` covers: "cheapest hotel in Toronto", "...for tomorrow", "...on Nov 2 for 2 people".
