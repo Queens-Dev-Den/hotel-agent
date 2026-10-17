@@ -10,6 +10,12 @@ from contracts import HotelCandidate, HotelRequest
 TODAY = date(2026, 10, 17)  # a Saturday
 
 
+@pytest.fixture(autouse=True)
+def no_real_backboard(monkeypatch):
+    """Importing config loads .env; never let a real key make network calls in tests."""
+    monkeypatch.delenv("BACKBOARD_API_KEY", raising=False)
+
+
 def parse(prompt, **kw):
     return parse_prompt(prompt, today=TODAY, **kw)
 
