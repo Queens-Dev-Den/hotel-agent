@@ -134,7 +134,7 @@ def best_offer(detail: dict) -> tuple[str | None, str | None]:
 # --- 20 km of the city border ------------------------------------------------------
 
 def _radius_km() -> float:
-    return float(getattr(config, "SEARCH_RADIUS_KM", 20.0))  # setting added on the contract branch
+    return config.SEARCH_RADIUS_KM
 
 
 def _city_places(city: str) -> list[dict]:

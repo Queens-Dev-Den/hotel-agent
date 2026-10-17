@@ -70,12 +70,12 @@ CSS = """
   --fs-xs: .8125rem; --fs-sm: .875rem; --fs-md: 1rem; --fs-lg: 1.125rem; --fs-xl: 1.375rem; --fs-2xl: 1.75rem; --fs-3xl: 2.375rem;
   --r-sm: 10px; --r-md: 16px; --r-lg: 22px;
   --text: #FFFFFF; --muted: #C9D1E4; --faint: #9AA6C2;
-  --primary: #8B5CF6; --primary-2: #EC4899; --live: #22D3EE; --ok: #34D399; --bad: #FB7185; --warn: #FBBF24; --idle: #A5B0C9;
-  /* glass: light, see-through gradient + strong blur + bright rim */
-  --glass-bg: linear-gradient(135deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.05) 100%);
-  --glass-rim: rgba(255,255,255,.26);
-  --glass-blur: blur(26px) saturate(180%);
-  --glass-shadow: 0 10px 40px rgba(6,4,24,.45), inset 0 1px 0 rgba(255,255,255,.45), inset 0 -1px 0 rgba(255,255,255,.06);
+  --primary: #7C3AED; --primary-hover: #6D28D9; --live: #22D3EE; --ok: #34D399; --bad: #FB7185; --warn: #FBBF24; --idle: #A5B0C9;
+  /* frosted glass, kept quiet: flat translucent fill, blur, thin rim */
+  --glass-bg: rgba(255,255,255,.06);
+  --glass-rim: rgba(255,255,255,.14);
+  --glass-blur: blur(20px) saturate(140%);
+  --glass-shadow: 0 6px 24px rgba(2,4,16,.35), inset 0 1px 0 rgba(255,255,255,.08);
 }
 
 /* one font everywhere, except Streamlit's icon font (it draws the sidebar arrows) and code */
@@ -88,16 +88,14 @@ CSS = """
 .ic { width: 1.15em; height: 1.15em; vertical-align: -0.2em; fill: none; stroke: currentColor;
       stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 
-/* backdrop: bright colour orbs drifting behind everything, so the glass has something to blur */
-.stApp { background: #0A0820; }
+/* backdrop: calm navy with two faint glows for the frosted panels to pick up */
+.stApp { background: #0B1020; }
 .stApp::before {
   content: ""; position: fixed; inset: -20%; z-index: 0; pointer-events: none;
   background:
-    radial-gradient(28% 32% at 18% 22%, rgba(139,92,246,.85), transparent 70%),
-    radial-gradient(24% 30% at 82% 18%, rgba(236,72,153,.70), transparent 70%),
-    radial-gradient(30% 34% at 70% 78%, rgba(34,211,238,.55), transparent 70%),
-    radial-gradient(22% 26% at 25% 85%, rgba(251,191,36,.35), transparent 70%),
-    linear-gradient(160deg, #1A0F45 0%, #0D0B2B 55%, #070616 100%);
+    radial-gradient(35% 40% at 15% 10%, rgba(124,58,237,.22), transparent 70%),
+    radial-gradient(35% 40% at 90% 85%, rgba(34,211,238,.10), transparent 70%),
+    #0B1020;
 }
 [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stBottomBlockContainer"] { background: transparent !important; }
 [data-testid="stAppViewContainer"] > * { position: relative; z-index: 1; }
@@ -110,25 +108,17 @@ header[data-testid="stHeader"] { background: transparent; }
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: var(--glass-shadow);
   overflow: hidden;
 }
-.card::before, .hero::before, .side-intro::before {
-  content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
-  background: linear-gradient(120deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,0) 38%);
-}
-.card > *, .hero > *, .side-intro > * { position: relative; }
-.card, .hero, .metric, .step { text-shadow: 0 1px 2px rgba(0,0,0,.35); }
 
 /* header */
 .hdr { display: flex; align-items: center; gap: .8rem; }
-.hdr h1 { font-size: var(--fs-3xl); font-weight: 800; margin: 0; letter-spacing: -0.025em; line-height: 1.1;
-  background: linear-gradient(90deg, #FFFFFF 0%, #E9D5FF 55%, #FBCFE8 100%); -webkit-background-clip: text;
-  background-clip: text; color: transparent; }
-.hdr .ic { width: 2.4rem; height: 2.4rem; color: #E9D5FF; }
+.hdr h1 { font-size: var(--fs-3xl); font-weight: 700; margin: 0; letter-spacing: -0.02em; line-height: 1.1; color: var(--text); }
+.hdr .ic { width: 2.2rem; height: 2.2rem; color: #A78BFA; }
 .sub { color: var(--muted); font-size: var(--fs-lg); margin: .4rem 0 .9rem; }
 .how { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.4rem; }
 .chip { display: inline-flex; align-items: center; gap: .45rem; padding: .45rem .85rem; border-radius: 999px;
   background: rgba(255,255,255,.10); border: 1px solid var(--glass-rim); color: var(--text); font-size: var(--fs-sm);
   font-weight: 500; backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
-.chip b { color: #E9D5FF; font-weight: 700; }
+.chip b { color: #A78BFA; font-weight: 700; }
 
 /* Streamlit widgets: labels, inputs, the Go button */
 .stApp label, .stApp [data-testid="stWidgetLabel"] p { font-size: var(--fs-sm) !important; font-weight: 600 !important; color: var(--muted) !important; }
@@ -137,14 +127,14 @@ div[data-baseweb="input"], div[data-baseweb="textarea"] { background: rgba(255,2
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
 div[data-baseweb="input"] input, div[data-baseweb="textarea"] textarea { background: transparent !important;
   color: var(--text) !important; font-size: var(--fs-md) !important; min-height: 2.75rem; }
-div[data-baseweb="input"]:focus-within, div[data-baseweb="textarea"]:focus-within { border-color: #C4B5FD !important;
-  box-shadow: 0 0 0 3px rgba(196,181,253,.35) !important; }
+div[data-baseweb="input"]:focus-within, div[data-baseweb="textarea"]:focus-within { border-color: #A78BFA !important;
+  box-shadow: 0 0 0 3px rgba(167,139,250,.3) !important; }
 div[data-testid="stFormSubmitButton"] button {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%) !important; border: 0 !important;
+  background: var(--primary) !important; border: 0 !important;
   color: #fff !important; min-height: 2.9rem; border-radius: var(--r-sm) !important; cursor: pointer;
-  box-shadow: 0 8px 28px rgba(139,92,246,.55), inset 0 1px 0 rgba(255,255,255,.35); transition: transform .15s ease-out, box-shadow .15s ease-out; }
+  box-shadow: 0 2px 8px rgba(2,4,16,.35); transition: background .15s ease-out; }
 div[data-testid="stFormSubmitButton"] button p { font-size: var(--fs-lg) !important; font-weight: 700 !important; color: #fff !important; }
-div[data-testid="stFormSubmitButton"] button:hover { transform: translateY(-1px); box-shadow: 0 12px 34px rgba(236,72,153,.55); }
+div[data-testid="stFormSubmitButton"] button:hover { background: var(--primary-hover) !important; }
 div[data-testid="stFormSubmitButton"] button:disabled { opacity: .45; box-shadow: none; transform: none; }
 
 /* sidebar: wider, glass, clearly a control panel */
@@ -153,7 +143,7 @@ section[data-testid="stSidebar"] > div { background: rgba(255,255,255,.07); bord
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
 section[data-testid="stSidebar"] .block-container, section[data-testid="stSidebarContent"] { padding: 1.5rem 1.4rem; }
 .side-intro { border-radius: var(--r-md); padding: 1rem 1.1rem; margin-bottom: 1rem; }
-.side-intro h2 { font-size: var(--fs-xl); font-weight: 800; margin: 0 0 .35rem; display: flex; gap: .5rem; align-items: center; }
+.side-intro h2 { font-size: var(--fs-xl); font-weight: 700; margin: 0 0 .35rem; display: flex; gap: .5rem; align-items: center; }
 .side-intro p { color: var(--muted); font-size: var(--fs-sm); line-height: 1.5; margin: 0; }
 .mode { display: inline-flex; gap: .45rem; align-items: center; margin-top: .75rem; padding: .4rem .8rem; border-radius: 999px;
   font-weight: 700; font-size: var(--fs-sm); border: 1px solid currentColor; background: rgba(0,0,0,.18); }
@@ -168,8 +158,8 @@ section[data-testid="stSidebar"] .block-container, section[data-testid="stSideba
              background: rgba(255,255,255,.06); }
 .step .lbl { font-weight: 700; font-size: var(--fs-md); }
 .step .meta { color: var(--muted); font-size: var(--fs-xs); line-height: 1.35; margin-top: .1rem; }
-.step.done .dot { background: linear-gradient(135deg, var(--primary), var(--primary-2)); border-color: transparent; color: #fff; }
-.step.running { border-color: rgba(34,211,238,.75); }
+.step.done .dot { background: var(--primary); border-color: var(--primary); color: #fff; }
+.step.running { border-color: rgba(34,211,238,.6); }
 .step.running .dot { border-color: var(--live); color: var(--live); }
 .step.failed .dot { border-color: var(--bad); color: var(--bad); }
 
@@ -194,22 +184,22 @@ section[data-testid="stSidebar"] .block-container, section[data-testid="stSideba
        font-weight: 600; font-size: var(--fs-sm); text-decoration: none !important; cursor: pointer; text-shadow: none;
        border: 1px solid var(--glass-rim); color: var(--text) !important; background: rgba(255,255,255,.12);
        transition: background .15s ease-out, transform .15s ease-out; }
-.btn:hover { background: rgba(255,255,255,.22); transform: translateY(-1px); }
-.btn:focus-visible, .stApp a:focus-visible { outline: 3px solid #E9D5FF; outline-offset: 2px; }
-.btn.primary { background: linear-gradient(135deg, var(--primary), var(--primary-2)); color: #fff !important; border: 0;
-               box-shadow: 0 8px 26px rgba(139,92,246,.5), inset 0 1px 0 rgba(255,255,255,.35); font-size: var(--fs-md); }
+.btn:hover { background: rgba(255,255,255,.18); }
+.btn:focus-visible, .stApp a:focus-visible { outline: 3px solid #A78BFA; outline-offset: 2px; }
+.btn.primary { background: var(--primary); color: #fff !important; border: 0; font-size: var(--fs-md); }
+.btn.primary:hover { background: var(--primary-hover); }
 
 .s-waiting { color: var(--idle); } .s-oncall { color: var(--live); } .s-available { color: var(--ok); }
 .s-unavailable, .s-error { color: var(--bad); } .s-voicemail, .s-no_answer { color: var(--warn); } .s-unclear { color: var(--muted); }
-.card.s-oncall { border-color: rgba(34,211,238,.85); box-shadow: var(--glass-shadow), 0 0 36px rgba(34,211,238,.35); }
-.card.s-available { border-color: rgba(52,211,153,.85); box-shadow: var(--glass-shadow), 0 0 36px rgba(52,211,153,.3); }
+.card.s-oncall { border-color: rgba(34,211,238,.6); }
+.card.s-available { border-color: rgba(52,211,153,.6); }
 .card .pill, .card .timer { color: inherit; }
 
 /* verdict hero */
 .hero { border-radius: var(--r-lg); padding: 1.6rem 1.8rem; margin-bottom: 1.4rem; }
-.hero.ok { border-color: rgba(52,211,153,.8); box-shadow: var(--glass-shadow), 0 0 48px rgba(52,211,153,.28); }
+.hero.ok { border-color: rgba(52,211,153,.55); }
 .hero .kicker { font-size: var(--fs-sm); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.hero h2 { font-size: var(--fs-2xl); font-weight: 800; margin: .35rem 0 .45rem; line-height: 1.25; color: var(--text); }
+.hero h2 { font-size: var(--fs-2xl); font-weight: 700; margin: .35rem 0 .45rem; line-height: 1.25; color: var(--text); }
 .hero p { color: var(--muted); margin: .25rem 0; font-size: var(--fs-md); line-height: 1.5; }
 .hero .row { display: flex; flex-wrap: wrap; gap: .7rem; margin-top: 1rem; align-items: center; }
 .note { color: var(--faint); font-size: var(--fs-sm); font-style: italic; margin-top: .7rem; }
@@ -228,13 +218,9 @@ div[data-testid="stTabs"] button p { font-size: var(--fs-md) !important; font-we
 div[data-testid="stCode"] pre, div[data-testid="stDataFrame"] { background: rgba(6,4,24,.55) !important; border-radius: var(--r-sm); }
 
 @media (prefers-reduced-motion: no-preference) {
-  .stApp::before { animation: drift 40s ease-in-out infinite alternate; }
-  @keyframes drift { 0% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(3%,-2%,0) scale(1.05); }
-                     100% { transform: translate3d(-3%,2%,0) scale(1.02); } }
   .step.running .dot, .card.s-oncall .pill { animation: pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(34,211,238,.6); } 50% { box-shadow: 0 0 0 9px rgba(34,211,238,0); } }
 }
-@media (prefers-reduced-motion: reduce) { .btn:hover, div[data-testid="stFormSubmitButton"] button:hover { transform: none; } }
 @media (max-width: 900px) { section[data-testid="stSidebar"] { width: 100% !important; min-width: 0 !important; } }
 </style>
 """
@@ -327,7 +313,7 @@ def _render_rail(state: dict) -> None:
     req, cands = state.get("request"), state.get("candidates")
     meta = {
         "brain": f"{_e(req.city)} · {req.check_in:%b %d}→{req.check_out:%b %d} · {req.guests} guest(s)" if req else "",
-        "search": f"{len(cands)} callable within {getattr(config, 'SEARCH_RADIUS_KM', 20):g} km" if cands is not None else "",
+        "search": f"{len(cands)} callable, ≤{config.SEARCH_DOWNTOWN_KM:g} km from downtown" if cands is not None else "",
         "recall": "Backboard memory" if "recall" in state["stages"] else "",
         "call": f"{sum('call' in c for c in state['calls'].values())}/{len(cands)} finished" if cands else "",
         "email": f"to {_e(req.callback_email)}" if req and state.get("run") and req.callback_email else "",
@@ -522,7 +508,7 @@ _html(
     'and emails you who has a room.</div>'
     '<div class="how">'
     f'<span class="chip">{_icon("search")} <b>1</b> Finds hotels within '
-    f'{getattr(config, "SEARCH_RADIUS_KM", 20):g} km</span>'
+    f'{config.SEARCH_DOWNTOWN_KM:g} km of downtown</span>'
     f'<span class="chip">{_icon("phonecall")} <b>2</b> Calls the 3 cheapest at once</span>'
     f'<span class="chip">{_icon("check")} <b>3</b> Confirms a room and the rate</span>'
     f'<span class="chip">{_icon("mail")} <b>4</b> Emails you the results</span></div>'
