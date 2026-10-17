@@ -50,7 +50,7 @@ SEARCH_KM_COST = _float("SEARCH_KM_COST", 2.0)
 
 
 # --- Competition / pipeline (shared) -------------------------------------------
-# Team number from organizers -> subject "Team # {TEAM_NO} - Hotel Reservation Confirmed!"
+# Team number from organizers -> subject "Team # {TEAM_NO} - Hotel Quotes Confirmed"
 TEAM_NO = os.getenv("TEAM_NO", "").strip()
 # Where the availability email (with call transcripts) is sent
 RECEIPT_TO_EMAIL = os.getenv("RECEIPT_TO_EMAIL", "").strip()
