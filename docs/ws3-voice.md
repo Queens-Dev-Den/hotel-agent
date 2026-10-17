@@ -89,12 +89,12 @@ This is what is actually configured in ElevenLabs and Twilio. If the agent break
 | LLM | `deepseek-v41-flash`, temperature 0.25, max 150 tokens, backup LLM default |
 | Prompt / first message | From `agent_brain.SYSTEM_PROMPT` / `FIRST_MESSAGE`. **Overrides are on for both**, so code sends them on every call; the dashboard copy only matters for dashboard test calls |
 | Listen first | `VOICE_LISTEN_FIRST` (default on): `voice_agent` sends an empty first message and adds a prompt line to say `FIRST_MESSAGE` after the hotel speaks. Dashboard first message is empty to match |
-| Call rules | `voice_agent.CALL_RULES` appended to every prompt: brand or central-reservations names aren't a wrong number; wait on cut-off or unclear speech and ask to repeat only once; a lone "bye" at pickup is probably misheard. Prompt is ~412 tokens in total |
+| Call rules | `voice_agent.CALL_RULES` appended to every prompt: sound like a relaxed person, no bracketed tags; stay silent through "one moment"/holds and never ask "are you still there?"; brand or central-reservations names aren't a wrong number; let cut-off speech finish, ask to repeat at most once; press 0 for codes/extensions; if asked "are you AI?" say yes honestly in one line and re-ask; if they refuse AI, thank them and leave; a lone "bye" at pickup is probably misheard. Prompt is ~547 tokens in total |
 | Dynamic variables | `hotel_name`, `guests`, `check_in`, `check_out`, `nights`, `hotel_notes`, `run_id`, `candidate_rank` (test values set in the dashboard) |
 | Built-in tools | `end_call`, `skip_turn` (silent on hold), `play_keypad_touch_tone` (IVR), `voicemail_detection` (hang up, no message) |
 | Custom tool | `record_availability`, see below |
-| Voice | `eleven_v4_turbo`, streaming latency 3, stability 0.5, speed 1.0 |
-| Turn | Eagerness **patient** (normal jumped in on half sentences), turn timeout 10 s, silence end-call 90 s, soft timeout off |
+| Voice | `eleven_v4_turbo`, **expressive mode off** (it made the LLM write `[slow]`/`[happy]` tags), streaming latency 3, stability 0.5, speed 1.0 |
+| Turn | Eagerness **patient** (normal jumped in on half sentences), turn timeout **25 s** (10 s asked "are you still there?" while staff checked), silence end-call 90 s, soft timeout off |
 | ASR keywords | `press, reservations, front desk, available, sold out, per night, hold, extension, hello, hi` ("press" was being heard as "trust") |
 | Max call | 180 s |
 | Limits | Concurrency 4 (bursting on), 300 calls/day |
