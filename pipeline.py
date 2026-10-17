@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 
 # Extra wait on top of MAX_CALL_DURATION_S for dial time and the transcript fetch
 JOIN_GRACE_S = 30
-# Seconds the fake call takes per rank (0 in tests; the UI sets it so mock runs look live)
+# Seconds each fake call takes (0 in tests; the UI sets it so mock runs look live)
 MOCK_CALL_DELAY_S = 0.0
 
 # Progress callback: on_event(kind, data). Kinds: stage_start {name}, stage_done {name, ms},
@@ -66,12 +66,12 @@ def _mock_find_candidates(request: HotelRequest, *, stats=None) -> list[HotelCan
 
 def _mock_place_call(plan: CallPlan) -> CallResult:
     rank = plan.candidate.rank
-    time.sleep(MOCK_CALL_DELAY_S * rank)
+    time.sleep(MOCK_CALL_DELAY_S)
     return CallResult(
         candidate_rank=rank,
         conversation_id=f"mock-{plan.run_id}-{rank}",
         outcome="available",
-        duration_s=MOCK_CALL_DELAY_S * rank,
+        duration_s=MOCK_CALL_DELAY_S,
         availability=Availability(candidate_rank=rank, available=True, quoted_rate=99.0, source="tool"),
         transcript="Agent: Hi, I'm calling to check room availability please.\nHotel: Yes, we have a room.",
     )

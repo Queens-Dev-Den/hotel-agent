@@ -158,7 +158,7 @@ with st.sidebar:
     fake_calls = st.checkbox("Fake calls (no phone calls)", value=True)
     fake_email = st.checkbox("Fake email (nothing sent)", value=True)
     fake_search = st.checkbox("Fake search (no SerpApi credits)", value="search" in config.MOCK_MODULES)
-    pipeline.MOCK_CALL_DELAY_S = st.slider("Fake call length per hotel (s)", 0.0, 10.0, 3.0, 0.5)
+    pipeline.MOCK_CALL_DELAY_S = st.slider("Fake call length (s)", 0.0, 10.0, 3.0, 0.5)
     if not fake_calls:
         if config.USE_MOCK_HOTEL:
             st.info(f"Calls go to the mock hotel numbers ({len(config.MOCK_HOTEL_PHONES)} set).")
