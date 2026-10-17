@@ -370,7 +370,12 @@ def test_add_agent_llm_tokens_sums_across_calls():
     assert usage["agent_llm_context"] == 330
 
 
-def test_add_agent_llm_tokens_records_both():
+def test_add_agent_llm_tokens_records_breakdown():
     usage = {}
-    assert agent_brain.add_agent_llm_tokens(REAL_CALL, usage) == 203
-    assert usage == {"agent_llm": 203, "agent_llm_context": 8105}
+    conv = {"metadata": {"charging": {"llm_charge": 41, "llm_usage": REAL_CALL["metadata"]["charging"]["llm_usage"]}}}
+    assert agent_brain.add_agent_llm_tokens(conv, usage, rank=2) == 203
+    expected = {"agent_llm": 203, "agent_llm_input": 122, "agent_llm_output": 81, "agent_llm_cache_read": 3584,
+                "agent_llm_cache_write": 0, "agent_llm_context": 8105, "agent_llm_credits": 41}
+    assert usage == {**expected, **{f"call2_{k}": v for k, v in expected.items()}}
+    agent_brain.add_agent_llm_tokens(conv, usage, rank=3)
+    assert usage["agent_llm"] == 406 and usage["call3_agent_llm"] == 203 and usage["agent_llm_credits"] == 82

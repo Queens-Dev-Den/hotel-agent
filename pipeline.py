@@ -215,7 +215,8 @@ def _count_agent_tokens(r: Run, call: CallResult, emit: Emit) -> None:
         return
     try:
         import voice_agent
-        add_agent_llm_tokens(voice_agent.conversation_details(call.conversation_id), r.telemetry.tokens)
+        add_agent_llm_tokens(voice_agent.conversation_details(call.conversation_id), r.telemetry.tokens,
+                             rank=call.candidate_rank)
     except Exception as exc:  # token counting must never fail a call
         log.warning("agent token count failed for call %d: %s", call.candidate_rank, exc)
     emit("tokens", {"tokens": dict(r.telemetry.tokens)})
