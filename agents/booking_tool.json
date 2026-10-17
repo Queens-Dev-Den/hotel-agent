@@ -1,0 +1,28 @@
+{
+  "tool_config": {
+    "type": "webhook",
+    "name": "record_availability",
+    "description": "Record whether the hotel has a room available for the requested dates and the lowest nightly rate. Call exactly once, after the hotel confirms your repeat-back, before ending the call.",
+    "response_timeout_secs": 10,
+    "api_schema": {
+      "url": "{PUBLIC_BASE_URL}/record_availability",
+      "method": "POST",
+      "request_headers": {
+        "X-Tool-Secret": "{TOOL_SHARED_SECRET}"
+      },
+      "request_body_schema": {
+        "type": "object",
+        "description": "One hotel's availability answer",
+        "required": ["run_id", "candidate_rank", "available", "notes"],
+        "properties": {
+          "run_id": {"type": "string", "dynamic_variable": "run_id"},
+          "candidate_rank": {"type": "integer", "dynamic_variable": "candidate_rank"},
+          "available": {"type": "boolean", "description": "True if the hotel said a room is available for the requested dates, false if not."},
+          "quoted_rate": {"type": "string", "description": "Lowest nightly rate the hotel quoted, as spoken, e.g. '$189'. Empty if no rate was given."},
+          "reservation_number": {"type": "string", "description": "Only if the hotel volunteers one. We never book, so this is usually empty."},
+          "notes": {"type": "string", "description": "One short sentence summarising the hotel's answer."}
+        }
+      }
+    }
+  }
+}

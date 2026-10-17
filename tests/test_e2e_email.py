@@ -43,7 +43,8 @@ def test_three_parallel_tool_calls_then_one_email(server, monkeypatch):
     to, subject, body = sent[0]
     assert to == "me@example.com" and subject == "Team # 15 - Hotel Reservation Confirmed!"
     assert "=== Cheapest available hotel ===" in body
-    assert "Availability: Available\nQuoted Rate: $189.00" in body
+    assert "Price for Stay: $189.00 total ($189.00/night x 1 night, quoted on the call)" in body
+    assert "Call Recording: https://" in body and "/c1\n" in body
     assert "Hotel: Yes, $189." in body and body.count("Transcript:") == 1
     assert ": Not available, rate not given" in body
     assert ": Unknown (voicemail / no answer / error), rate not given" in body

@@ -12,10 +12,12 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from statistics import median
 from pathlib import Path
 
 import httpx
@@ -29,6 +31,13 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 SERPAPI_URL = "https://serpapi.com/search.json"
 CACHE_DIR = Path(".cache/serpapi")
+# City boundaries for the organizer's "within 20 km of the city border" rule. Free, no key;
+# usage policy: identify the app and stay under 1 request/s (we make 1 per run, cached).
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+NOMINATIM_UA = "hotel-agent-hackathon/1.0 (github.com/Queens-Dev-Den/hotel-agent)"
+# A city that OSM only knows as a point (no boundary) is treated as this wide around the point
+POINT_CITY_RADIUS_KM = 3.0
+_city_cache: dict[str, list[dict]] = {}
 TOLL_FREE_PREFIXES = ("800", "833", "844", "855", "866", "877", "888")
 _stats_lock = threading.Lock()
 
@@ -122,6 +131,103 @@ def best_offer(detail: dict) -> tuple[str | None, str | None]:
     return link, site
 
 
+# --- 20 km of the city border ------------------------------------------------------
+
+def _radius_km() -> float:
+    return float(getattr(config, "SEARCH_RADIUS_KM", 20.0))  # setting added on the contract branch
+
+
+def _city_places(city: str) -> list[dict]:
+    """Up to 5 OSM settlements named `city`, with boundary polygons. [] on any error."""
+    key = city.strip().lower()
+    if key in _city_cache:
+        return _city_cache[key]
+    try:
+        resp = httpx.get(NOMINATIM_URL, headers={"User-Agent": NOMINATIM_UA}, timeout=config.HTTP_TIMEOUT_S, params={
+            "q": city, "format": "jsonv2", "featureType": "settlement", "limit": 5,
+            "polygon_geojson": 1, "polygon_threshold": 0.001,  # simplified outline is plenty for 20 km
+        })
+        resp.raise_for_status()
+        places = resp.json()
+    except Exception as exc:
+        log.warning("city boundary lookup failed for %r: %s", city, type(exc).__name__)
+        return []
+    _city_cache[key] = places
+    return places
+
+
+def _rings(place: dict) -> list[list[tuple[float, float]]]:
+    """Outer boundary rings as (lon, lat). A point-only place becomes [] (handled by distance)."""
+    geo = place.get("geojson") or {}
+    if geo.get("type") == "Polygon":
+        return [[tuple(p) for p in geo["coordinates"][0]]]
+    if geo.get("type") == "MultiPolygon":
+        return [[tuple(p) for p in poly[0]] for poly in geo["coordinates"]]
+    return []
+
+
+def km_outside(lat: float, lon: float, place: dict) -> float:
+    """0 if (lat, lon) is inside the place's boundary, else km to its nearest edge.
+    Equirectangular projection around the point: well under 1% error at 20 km."""
+    kx, ky = 111.320 * math.cos(math.radians(lat)), 110.574
+
+    def xy(p_lon: float, p_lat: float) -> tuple[float, float]:
+        return (p_lon - lon) * kx, (p_lat - lat) * ky  # the listing sits at the origin
+
+    rings = _rings(place)
+    if not rings:
+        cx, cy = xy(float(place["lon"]), float(place["lat"]))
+        return max(math.hypot(cx, cy) - POINT_CITY_RADIUS_KM, 0.0)
+    best = math.inf
+    for ring in rings:
+        pts = [xy(*p) for p in ring]
+        inside = False
+        for (x1, y1), (x2, y2) in zip(pts, pts[1:] + pts[:1]):
+            if (y1 > 0) != (y2 > 0) and 0 < x1 + (0 - y1) * (x2 - x1) / (y2 - y1):
+                inside = not inside  # ray cast along +x from the origin
+            dx, dy = x2 - x1, y2 - y1
+            t = max(0.0, min(1.0, -(x1 * dx + y1 * dy) / (dx * dx + dy * dy))) if dx or dy else 0.0
+            best = min(best, math.hypot(x1 + t * dx, y1 + t * dy))
+        if inside:
+            return 0.0
+    return best
+
+
+def _coords(prop: dict) -> tuple[float, float] | None:
+    gps = prop.get("gps_coordinates") or {}
+    lat, lon = gps.get("latitude"), gps.get("longitude")
+    return (float(lat), float(lon)) if isinstance(lat, (int, float)) and isinstance(lon, (int, float)) else None
+
+
+def pick_city(places: list[dict], props: list[dict]) -> dict | None:
+    """The OSM place the listings are actually around ("Kingston" is Jamaica first in OSM).
+    Prefers a real boundary over a point when both fit."""
+    points = [c for c in map(_coords, props) if c]
+    if not places:
+        return None
+    if not points:
+        return places[0]
+    mid = (median(p[0] for p in points), median(p[1] for p in points))
+    return min(places, key=lambda pl: (round(km_outside(*mid, pl)), not _rings(pl)))
+
+
+def _within_radius(props: list[dict], place: dict | None, stats: dict[str, int]) -> list[dict]:
+    """Keep listings inside the city or within SEARCH_RADIUS_KM of its border."""
+    if place is None:
+        stats["radius_unchecked"] = 1  # lookup failed: keep everything rather than fail the run
+        return props
+    kept = []
+    for prop in props:
+        c = _coords(prop)
+        if c is None:
+            stats["no_coords"] = stats.get("no_coords", 0) + 1
+        elif km_outside(*c, place) > _radius_km():
+            stats["outside_radius"] = stats.get("outside_radius", 0) + 1
+        else:
+            kept.append(prop)
+    return kept
+
+
 def _is_toll_free(phone_e164: str) -> bool:
     return phone_e164.startswith("+1") and phone_e164[2:5] in TOLL_FREE_PREFIXES
 
@@ -169,7 +275,10 @@ def find_candidates(request: HotelRequest, *, stats: dict[str, int] | None = Non
 
     kinds = (False, True) if config.SEARCH_RENTALS else (False,)
     with ThreadPoolExecutor(max_workers=config.SEARCH_TOP_N + config.RENTAL_FANOUT) as pool:
+        places = pool.submit(_city_places, request.city)  # in parallel with the searches
         results = list(pool.map(lambda r: _search(request, r, stats), kinds))
+        place = pick_city(places.result(), [p for props in results for p in props])
+        results = [_within_radius(props, place, stats) for props in results]
 
         # Rentals get their own small budget: they are usually the cheapest but
         # rarely list a phone, so a shared budget would crowd out callable hotels.

@@ -270,3 +270,30 @@ def test_spoken_amounts(line, expected):
 def test_rate_comes_from_the_last_mention():
     text = t("Yes we have a room, rates start at $120.", "Actually the cheapest is $99 tonight.")
     assert check(text).quoted_rate == 99.0
+
+
+def test_rate_in_a_separate_line_from_the_yes():
+    # Condensed from a real call (conv_3201m55f…, 2026-10-17): the rate was lost
+    text = (
+        "Agent: Is there a room available for Monday, November second?\n"
+        "Hotel: Uh, sorry, I have nothing available. Yeah, I have a room available.\n"
+        "Agent: Okay, so you have a room available for Monday?\n"
+        "Hotel: Yep, yep, yep. I have that room available.\n"
+        "Agent: Great, and what's the lowest nightly rate you have for that night?\n"
+        "Hotel: Lowest nightly rate I have is $2.00.\n"
+        "Agent: Just to confirm, you have a room available at two dollars?\n"
+        "Hotel: For two dollars. Yep, yep, yep. Confirmed. Yep.\n"
+    )
+    a = extractor.from_transcript(text, 3)
+    assert a.available is True
+    assert a.quoted_rate == 2.0
+
+
+def test_separate_line_rate_latest_wins_and_bounds_skipped():
+    text = (
+        "Hotel: Yes, we have a room.\n"
+        "Hotel: It's $150 a night.\n"
+        "Hotel: Sorry, I misread, it's $129 a night.\n"
+        "Hotel: Everything here is under $200.\n"
+    )
+    assert extractor.from_transcript(text, 1).quoted_rate == 129.0

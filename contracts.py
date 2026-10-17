@@ -80,9 +80,11 @@ class HotelSection(BaseModel):
     address: str
     phone: str
     availability: bool | None
-    quoted_rate: float | None = None
+    quoted_rate: float | None = None  # per night, from the call
     transcript: str | None = None
-    reservation_number: str | None = None  # only if the hotel volunteers one; we never book
+    reservation_number: str | None = None  # optional for the organizers; only if the hotel gives one
+    search_price: float | None = None  # total stay from search, used when the call quoted no rate
+    audio_url: str | None = None  # ElevenLabs link to the call recording (organizers' proof)
 
 
 class EmailPayload(BaseModel):
