@@ -13,7 +13,6 @@ import time
 import streamlit as st
 
 import config
-import costs
 import pipeline
 
 STAGES = [
@@ -201,17 +200,22 @@ def _render_summary(state: dict, started: float) -> None:
                    f"(Backboard {backboard:,} · voice agent {agent:,}) · SerpApi searches: "
                    f"{t.get('serpapi_searches', 0)}")
         return
-    lines = costs.estimate(run)
+    t = run.telemetry.tokens
+    backboard = t.get("backboard_in", 0) + t.get("backboard_out", 0)
+    agent = t.get("agent_llm", 0)
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Total time", _fmt_s(time.monotonic() - started if not state.get("finished") else state["finished"]))
-    m2.metric("Tokens", f"{costs.total_tokens(run):,}")
-    m3.metric("Est. cost", f"${sum(line.usd for line in lines):.3f}")
+    m2.metric("Tokens", f"{backboard + agent:,}")
+    m3.metric("SerpApi searches", t.get("serpapi_searches", 0))
     m4.metric("Email", "Sent ✓" if run.email else "Not sent")
-    with st.expander("Cost and token breakdown"):
-        st.table([{"Item": line.item, "Usage": line.usage, "USD": f"${line.usd:.4f}"} for line in lines])
-        st.caption("List prices in USD (rates in config.py, editable in .env). We're on free tiers, so the "
-                   "actual bill is $0. Call minutes are billed per call, so 3 parallel calls cost 3× even "
-                   "though they take the time of one.")
+    with st.expander("Token and usage breakdown"):
+        st.table([
+            {"Item": "Backboard (prompt, fallback, memory)",
+             "Usage": f"{t.get('backboard_in', 0):,} in + {t.get('backboard_out', 0):,} out tokens"},
+            {"Item": "Voice agent LLM", "Usage": f"{agent:,} tokens"},
+            {"Item": "Call time (all calls added up)", "Usage": f"{sum(c.duration_s for c in run.calls) / 60:.1f} min"},
+            {"Item": "SerpApi", "Usage": f"{t.get('serpapi_searches', 0)} searches"},
+        ])
     with st.expander("Transcripts"):
         for call in run.calls:
             st.markdown(f"**Hotel {call.candidate_rank}** · {call.outcome}")
