@@ -23,6 +23,7 @@ STAGES = [
     ("search", "Find hotels"),
     ("recall", "Check past calls"),
     ("call", "Call hotels"),
+    ("retry", "Call 3 more"),  # only shown when no first-round hotel confirmed a room with a rate
     ("email", "Send email"),
 ]
 POLL_S = 0.25
@@ -315,11 +316,14 @@ def _render_rail(state: dict) -> None:
         "brain": f"{_e(req.city)} · {req.check_in:%b %d}→{req.check_out:%b %d} · {req.guests} guest(s)" if req else "",
         "search": f"{len(cands)} callable, ≤{config.SEARCH_DOWNTOWN_KM:g} km from downtown" if cands is not None else "",
         "recall": "Backboard memory" if "recall" in state["stages"] else "",
-        "call": f"{sum('call' in c for c in state['calls'].values())}/{len(cands)} finished" if cands else "",
+        "call": f"{sum('call' in c for k, c in state['calls'].items() if k <= 3)}/{min(len(cands), 3)} finished"
+                if cands else "",
+        "retry": "no room confirmed, calling the next cheapest" if "retry" in state["stages"] else "",
         "email": f"to {_e(req.callback_email)}" if req and state.get("run") and req.callback_email else "",
     }
     steps = []
-    for i, (key, label) in enumerate(STAGES, start=1):
+    stages = [(k, lbl) for k, lbl in STAGES if k != "retry" or "retry" in state["stages"]]
+    for i, (key, label) in enumerate(stages, start=1):
         s = state["stages"].get(key)
         if s is None:
             cls, dot, took = "", str(i), ""
@@ -378,9 +382,10 @@ def _render_cards(state: dict) -> None:
         _html(f'<div class="empty">{_icon("hotel")}&nbsp; The cheapest callable hotels appear here after the search.</div>')
         return
     nights = max((req.check_out - req.check_in).days, 1) if req else 1
-    for col, c in zip(st.columns(3, gap="medium"), cands):
-        with col:
-            _html(_card(c, state, nights))
+    for row in range(0, len(cands), 3):  # a retry round adds a second row
+        for col, c in zip(st.columns(3, gap="medium"), cands[row:row + 3]):
+            with col:
+                _html(_card(c, state, nights))
 
 
 def _render_hero(run) -> None:

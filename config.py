@@ -88,6 +88,8 @@ BACKBOARD_ASSISTANT_ID = os.getenv("BACKBOARD_ASSISTANT_ID", "").strip()
 USE_MOCK_HOTEL = _bool("USE_MOCK_HOTEL", True)
 MOCK_HOTEL_PHONES = [p.strip() for p in os.getenv("MOCK_HOTEL_PHONES", "").split(",") if p.strip()]
 MAX_CALL_DURATION_S = _int("MAX_CALL_DURATION_S", 180)
+# If no hotel in the first round confirms a room with a rate, call the next 3 cheapest (once)
+RETRY_IF_NO_ROOM = _bool("RETRY_IF_NO_ROOM", True)
 
 # --- WS3: Voice (voice_agent.py) -----------------------------------------------
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "").strip()

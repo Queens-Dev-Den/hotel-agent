@@ -281,8 +281,11 @@ def _details(request: HotelRequest, prop: dict, source: str, stats: dict[str, in
         return None
 
 
-def find_candidates(request: HotelRequest, *, stats: dict[str, int] | None = None) -> list[HotelCandidate]:
+def find_candidates(request: HotelRequest, *, stats: dict[str, int] | None = None,
+                    exclude: set[str] | None = None) -> list[HotelCandidate]:
     """Up to 3 cheapest listings with a dialable phone, sorted by total price.
+
+    `exclude` holds names and E.164 phones already called (the retry round skips them).
 
     `stats` gets drop counts added in place (for the Learnings slide).
     Raises RuntimeError if nothing callable is found.
@@ -305,6 +308,9 @@ def find_candidates(request: HotelRequest, *, stats: dict[str, int] | None = Non
         ):
             priced = []
             for prop in props:
+                if exclude and prop.get("name") in exclude:
+                    stats["already_called"] = stats.get("already_called", 0) + 1
+                    continue
                 price = total_price(prop, nights)
                 if price is None:
                     stats["no_price"] = stats.get("no_price", 0) + 1
@@ -329,6 +335,9 @@ def find_candidates(request: HotelRequest, *, stats: dict[str, int] | None = Non
             continue
         if not address:
             stats["no_address"] = stats.get("no_address", 0) + 1
+            continue
+        if exclude and phone in exclude:
+            stats["already_called"] = stats.get("already_called", 0) + 1
             continue
         if phone in seen:
             stats["duplicate"] = stats.get("duplicate", 0) + 1
