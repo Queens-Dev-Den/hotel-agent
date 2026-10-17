@@ -4,3 +4,11 @@ toolbarMode = "minimal"
 
 [browser]
 gatherUsageStats = false
+
+[theme]
+# Glass UI: the page backdrop and surfaces are styled in app.py (CSS); this sets widget defaults
+base = "dark"
+primaryColor = "#8B5CF6"
+backgroundColor = "#0B1026"
+secondaryBackgroundColor = "#1A1440"
+textColor = "#F8FAFC"
