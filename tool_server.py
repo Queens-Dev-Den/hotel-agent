@@ -152,6 +152,12 @@ class _Handler(BaseHTTPRequestHandler):
         log.info("%s %s", self.address_string(), fmt % args)
 
 
+class _Server(ThreadingHTTPServer):
+    daemon_threads = True
+    # socketserver's default listen backlog is 5; bursts beyond that get connection resets
+    request_queue_size = 64
+
+
 def start_in_background(port: int = 8000) -> int:
     """Run the HTTP server on a daemon thread (called first by pipeline.run).
 
@@ -160,8 +166,7 @@ def start_in_background(port: int = 8000) -> int:
     global _server
     if _server is not None:
         return _server.server_address[1]
-    server = ThreadingHTTPServer(("127.0.0.1", port), _Handler)
-    server.daemon_threads = True
+    server = _Server(("127.0.0.1", port), _Handler)
     threading.Thread(target=lambda: server.serve_forever(poll_interval=0.05), name="tool_server", daemon=True).start()
     _server = server
     return server.server_address[1]
