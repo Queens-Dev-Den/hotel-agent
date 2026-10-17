@@ -34,7 +34,7 @@ Key pieces:
 
 - Listings must be within 20 km of the city border (`SEARCH_RADIUS_KM`).
 - The email subject is exactly `Team # {TEAM_NO} - Hotel Quotes Confirmed`. `check_payload` refuses to send anything else.
-- The email body must have: hotel name, address, the phone we called, the price for the stay, and the ElevenLabs call-recording link (`ELEVENLABS_CONVERSATION_URL` with `{id}` = `conversation_id`). The organizers use the recording link to check the agent didn't make anything up. The reservation # is left out on purpose (optional per the organizers; we never book).
+- The email body must have: hotel name, address, the phone we called, the price for the stay, and the call recording: the highlighted hotel's call is attached as an MP3 (`voice_agent.conversation_audio`), falling back to the ElevenLabs link (`ELEVENLABS_CONVERSATION_URL` with `{id}` = `conversation_id`) if the download fails. Only the winner's recording is included. The organizers use it to check the agent didn't make anything up. The reservation # is left out on purpose (optional per the organizers; we never book).
 - `quoted_rate` is **per night** everywhere. The price for the stay is `quoted_rate × nights`, falling back to the search's `total_price`.
 - Token discipline: deterministic work (parsing, sorting, formatting, validation) uses 0 LLM tokens. Backboard is capped by `BACKBOARD_TOKEN_BUDGET`, and token counts are scored.
 
