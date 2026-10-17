@@ -432,7 +432,7 @@ def _render_metrics(state: dict, started: float) -> None:
 
 
 def _render_token_breakdown(run, backboard: int, agent: int) -> None:
-    """Where every token went: counted tokens by step, the cached context we don't count, per call."""
+    """Where every token went, by pipeline step."""
     t = run.telemetry.tokens
     st.markdown(f"**{backboard + agent:,} tokens this run** = Backboard {backboard:,} + voice agent {agent:,}. "
                 "The voice agent number matches the ElevenLabs dashboard.")
@@ -452,50 +452,12 @@ def _render_token_breakdown(run, backboard: int, agent: int) -> None:
         {"Step": "Total", "Service": "", "Tokens": backboard + agent, "What it is": ""},
     ], hide_index=True, width="stretch")
 
-    cached = t.get("agent_llm_cache_read", 0) + t.get("agent_llm_cache_write", 0)
-    st.markdown("**Not in the total: cached context**")
-    st.caption("On every turn the agent re-reads ElevenLabs' built-in instructions, our prompt and the "
-               "conversation so far (~3.5k tokens). That comes from cache and is billed at a fraction, so "
-               "ElevenLabs doesn't count it as tokens used.")
-    st.dataframe([
-        {"Item": "Cache reads (context re-read each turn)", "Value": f"{t.get('agent_llm_cache_read', 0):,} tokens"},
-        {"Item": "Cache writes (context stored, first turn of each call)", "Value": f"{t.get('agent_llm_cache_write', 0):,} tokens"},
-        {"Item": "Everything the LLM processed (incl. cache and interrupted replies)", "Value": f"{t.get('agent_llm_context', 0):,} tokens"},
-        {"Item": "ElevenLabs LLM credits charged", "Value": f"{t.get('agent_llm_credits', 0):,}"},
-        {"Item": "Call time (all calls added up)", "Value": f"{sum(c.duration_s for c in run.calls) / 60:.1f} min"},
-    ], hide_index=True, width="stretch")
-
-    rows = []
-    names = {c.rank: c.name for c in run.candidates}
-    for call in sorted(run.calls, key=lambda c: c.candidate_rank):
-        k = f"call{call.candidate_rank}_"
-        rows.append({
-            "Hotel": f"{call.candidate_rank}. {names.get(call.candidate_rank, '?')}",
-            "Outcome": call.outcome,
-            "Call length": f"{call.duration_s:.0f}s",
-            "Heard (in)": t.get(k + "agent_llm_input", 0),
-            "Said (out)": t.get(k + "agent_llm_output", 0),
-            "Tokens": t.get(k + "agent_llm", 0),
-            "Cached reads": t.get(k + "agent_llm_cache_read", 0),
-            "Credits": t.get(k + "agent_llm_credits", 0),
-        })
-    if rows and cached:
-        st.markdown("**Per call**")
-        st.dataframe(rows, hide_index=True, width="stretch")
-
 
 def _render_details(run) -> None:
     t = run.telemetry.tokens
     backboard = t.get("backboard_in", 0) + t.get("backboard_out", 0)
-    names = {c.rank: c.name for c in run.candidates}
-    tabs = st.tabs(["Transcripts", "Token breakdown"])
-    with tabs[0]:
-        for call in sorted(run.calls, key=lambda c: c.candidate_rank):
-            label = STATUS.get(call.outcome, (call.outcome, ""))[0]
-            st.markdown(f"**#{call.candidate_rank} {names.get(call.candidate_rank, '')}** · {label} · {call.duration_s:.0f}s")
-            st.code(call.transcript or "(no transcript)", language=None, wrap_lines=True)
-    with tabs[1]:
-        _render_token_breakdown(run, backboard, t.get("agent_llm", 0))
+    st.markdown("**Token breakdown**")
+    _render_token_breakdown(run, backboard, t.get("agent_llm", 0))
 
 
 # --- page -----------------------------------------------------------------------------
