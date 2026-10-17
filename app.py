@@ -100,21 +100,24 @@ CSS = """
 [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stBottomBlockContainer"] { background: transparent !important; }
 [data-testid="stAppViewContainer"] > * { position: relative; z-index: 1; }
 header[data-testid="stHeader"] { background: transparent; }
-.block-container { max-width: 1320px; padding-top: 2.25rem; }
+.block-container { max-width: 1120px; margin: 0 auto; padding-top: 2.25rem; }
+/* no sidebar: hide it and its open/close arrow */
+section[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"], [data-testid="collapsedControl"] { display: none !important; }
 
 /* shared glass surface (+ a soft sheen across the top-left) */
-.glass, .step, .card, .hero, .metric, .empty, .side-intro {
+.glass, .step, .card, .hero, .metric, .empty {
   position: relative; background: var(--glass-bg); border: 1px solid var(--glass-rim);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: var(--glass-shadow);
   overflow: hidden;
 }
 
 /* header */
-.hdr { display: flex; align-items: center; gap: .8rem; }
+.hdr { display: flex; align-items: center; justify-content: center; gap: .8rem; }
 .hdr h1 { font-size: var(--fs-3xl); font-weight: 700; margin: 0; letter-spacing: -0.02em; line-height: 1.1; color: var(--text); }
 .hdr .ic { width: 2.2rem; height: 2.2rem; color: #A78BFA; }
-.sub { color: var(--muted); font-size: var(--fs-lg); margin: .4rem 0 .9rem; }
-.how { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.4rem; }
+.sub { color: var(--muted); font-size: var(--fs-lg); margin: .4rem 0 .9rem; text-align: center; }
+.how { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin-bottom: .8rem; }
+.live { display: flex; justify-content: center; margin-bottom: 1.4rem; }
 .chip { display: inline-flex; align-items: center; gap: .45rem; padding: .45rem .85rem; border-radius: 999px;
   background: rgba(255,255,255,.10); border: 1px solid var(--glass-rim); color: var(--text); font-size: var(--fs-sm);
   font-weight: 500; backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
@@ -137,18 +140,8 @@ div[data-testid="stFormSubmitButton"] button p { font-size: var(--fs-lg) !import
 div[data-testid="stFormSubmitButton"] button:hover { background: var(--primary-hover) !important; }
 div[data-testid="stFormSubmitButton"] button:disabled { opacity: .45; box-shadow: none; transform: none; }
 
-/* sidebar: wider, glass, clearly a control panel */
-section[data-testid="stSidebar"] { width: 400px !important; min-width: 400px !important; }
-section[data-testid="stSidebar"] > div { background: rgba(255,255,255,.07); border-right: 1px solid var(--glass-rim);
-  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
-section[data-testid="stSidebar"] .block-container, section[data-testid="stSidebarContent"] { padding: 1.5rem 1.4rem; }
-.side-intro { border-radius: var(--r-md); padding: 1rem 1.1rem; margin-bottom: 1rem; }
-.side-intro h2 { font-size: var(--fs-xl); font-weight: 700; margin: 0 0 .35rem; display: flex; gap: .5rem; align-items: center; }
-.side-intro p { color: var(--muted); font-size: var(--fs-sm); line-height: 1.5; margin: 0; }
-.mode { display: inline-flex; gap: .45rem; align-items: center; margin-top: .75rem; padding: .4rem .8rem; border-radius: 999px;
+.mode { display: inline-flex; gap: .45rem; align-items: center; padding: .4rem .8rem; border-radius: 999px;
   font-weight: 700; font-size: var(--fs-sm); border: 1px solid currentColor; background: rgba(0,0,0,.18); }
-.side-h { display: flex; gap: .5rem; align-items: center; font-size: var(--fs-lg); font-weight: 700; margin: 1.25rem 0 .2rem; }
-.side-d { color: var(--faint); font-size: var(--fs-sm); line-height: 1.5; margin: 0 0 .6rem; }
 
 /* progress rail */
 .rail { display: flex; flex-wrap: wrap; gap: .7rem; margin: .4rem 0 1.4rem; }
@@ -221,7 +214,6 @@ div[data-testid="stCode"] pre, div[data-testid="stDataFrame"] { background: rgba
   .step.running .dot, .card.s-oncall .pill { animation: pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(34,211,238,.6); } 50% { box-shadow: 0 0 0 9px rgba(34,211,238,0); } }
 }
-@media (max-width: 900px) { section[data-testid="stSidebar"] { width: 100% !important; min-width: 0 !important; } }
 </style>
 """
 
@@ -466,7 +458,7 @@ def _render_details(run) -> None:
 
 # --- page -----------------------------------------------------------------------------
 
-st.set_page_config(page_title="Hotel Agent", page_icon="🏨", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Hotel Agent", page_icon="🏨", layout="wide", initial_sidebar_state="collapsed")
 _html(CSS)
 _html(
     f'<div class="hdr">{_icon("hotel")}<h1>Hotel Agent</h1></div>'
@@ -478,25 +470,14 @@ _html(
     f'<span class="chip">{_icon("phonecall")} <b>2</b> Calls the 3 cheapest at once</span>'
     f'<span class="chip">{_icon("check")} <b>3</b> Confirms a room and the rate</span>'
     f'<span class="chip">{_icon("mail")} <b>4</b> Emails you the results</span></div>'
+    f'<div class="live"><span class="mode s-unavailable">{_icon("alert")} Live: real calls to the real hotels and '
+    'a real email. The agent only asks about availability and the rate, it never books.</span></div>'
 )
-
-
-def _side_section(icon: str, title: str, description: str) -> None:
-    _html(f'<div class="side-h">{_icon(icon)} {title}</div><p class="side-d">{description}</p>')
 
 
 # Live only: every run searches the real hotels, phones them and sends a real email.
 config.MOCK_MODULES = set()
 config.USE_MOCK_HOTEL, config.MOCK_HOTEL_PHONES = False, []
-
-with st.sidebar:
-    st.markdown(
-        f'<div class="side-intro"><h2>{_icon("settings")} Live mode</h2>'
-        '<p>Every run searches real hotels, phones them and sends a real email. '
-        'The agent only asks about availability and the nightly rate. It never books.</p>'
-        f'<span class="mode s-unavailable">{_icon("alert")} Live: calls the real hotels</span></div>',
-        unsafe_allow_html=True,
-    )
 
 with st.form("prompt", border=False):
     c1, c2, c3 = st.columns([5, 3, 1.2], vertical_alignment="bottom")
