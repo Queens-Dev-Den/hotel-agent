@@ -62,8 +62,11 @@ LISTEN_FIRST_LINE = (
 # From live tests with real hotels: receptionists hang up on stiff AI-sounding callers,
 # "one moment" got an "Are you still there?" after 10 s, brand names read as "wrong
 # number", half sentences and misheard greetings ("hi" -> "bye") made the agent ask to
-# repeat or hang up, and a PBX "enter your access code" got a spoken explanation.
+# repeat or hang up, a PBX "enter your access code" got a spoken explanation, and after
+# "bye" the agent said goodbye without calling end_call, so the line stayed open.
 CALL_RULES = (
+    '\n- When the call is done or they say bye, say one short goodbye like "Thanks, bye!" and use end_call in that same turn. '
+    "Never say anything after goodbye."
     "\n- Sound like a relaxed, friendly person: short casual sentences with contractions. Never write bracketed tags like [slow]."
     '\n- If they say "one moment", "let me check" or put you on hold, stay silent until they speak again, however long it takes. '
     'Never ask "are you still there?" while they are checking.'
