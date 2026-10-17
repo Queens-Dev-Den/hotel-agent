@@ -142,6 +142,9 @@ def _backboard_complete(system: str, user: str, max_tokens: int) -> tuple[str, i
     )
     resp.raise_for_status()
     body = resp.json()
+    # Billing/model errors come back as HTTP 200 with status FAILED and the reason in content
+    if body.get("status") == "FAILED":
+        raise httpx.HTTPError(f"Backboard run failed: {body.get('content')}")
     return body.get("content") or "", body.get("input_tokens") or 0, body.get("output_tokens") or 0
 
 
@@ -339,7 +342,7 @@ def _latency_check(models: list[str]) -> None:
     """python agent_brain.py [provider/model ...]: time one tiny completion per model."""
     from dotenv import load_dotenv
 
-    load_dotenv()
+    load_dotenv(".env")
     for model in models or [os.environ.get("BACKBOARD_MODEL") or BACKBOARD_DEFAULT_MODEL]:
         os.environ["BACKBOARD_MODEL"] = model
         start = time.perf_counter()

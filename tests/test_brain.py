@@ -1,5 +1,6 @@
 from datetime import date
 
+import httpx
 import pytest
 
 import agent_brain
@@ -161,6 +162,18 @@ def test_fallback_extract_without_key_returns_none(monkeypatch):
 
 def test_fallback_extract_bad_json(monkeypatch):
     monkeypatch.setattr(agent_brain, "_backboard_complete", lambda s, u, m: ("sorry, no idea", 100, 5))
+    assert fallback_extract(TRANSCRIPT, 1) is None
+
+
+def test_backboard_failed_status_is_an_error(monkeypatch):
+    monkeypatch.setenv("BACKBOARD_API_KEY", "test")
+    request = httpx.Request("POST", "https://app.backboard.io/api/threads/messages")
+    monkeypatch.setattr(
+        agent_brain.httpx, "post",
+        lambda *a, **k: httpx.Response(200, json={"status": "FAILED", "content": "Your free credit is reserved"}, request=request),
+    )
+    with pytest.raises(httpx.HTTPError):
+        agent_brain._backboard_complete("sys", "user", 10)
     assert fallback_extract(TRANSCRIPT, 1) is None
 
 
