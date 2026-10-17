@@ -1,6 +1,6 @@
 # WS2 — Backboard Brain, Memory & Token Telemetry
 
-**Owner:** Isaac (T2) · **Module:** `agent_brain.py` (plus the token counters in `telemetry.py`)
+**Owner:** Zach (T2) · **Module:** `agent_brain.py` (plus the token counters in `telemetry.py`)
 
 Backboard is **not** in the live call loop (see [architecture decision #1](architecture.md#key-decisions-changes-from-the-original-brief)). It runs before and after the call, and it is the main source of our token-efficiency story.
 
