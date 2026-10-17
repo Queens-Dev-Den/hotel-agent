@@ -61,7 +61,39 @@ Every model takes 1.1–1.5 s through Backboard, far above the 400 ms bar in [ar
 
 ### Phase 3 (15:30–16:45)
 - [ ] Final token table for the deck: per stage and per run, average of 3 runs. Include the agent LLM tokens summed over the 3 parallel calls.
-- [ ] Write the "what we'd change" notes for the deck: model choice, prompt size, caching.
+- [x] Write the "what we'd change" notes for the deck: model choice, prompt size, caching (see [Deck notes](#deck-notes-for-isaac)).
+
+## Deck notes (for Isaac)
+
+Measured 2026-10-17 unless marked *pending*. Run `python token_report.py` after each real run to fill in the pending numbers.
+
+### Token economy: what we spend per run
+
+| Stage | LLM? | Tokens | Measured |
+|---|---|---|---|
+| Prompt parsing | Regex first; Backboard only if no city is found | **0** for normal prompts; ~160 on the fallback | Live: "cheapest hotel in Toronto on Nov 2 for 2 people" → 0 tokens, 0 ms. "the capital of Canada next friday" → Backboard, 158 tokens |
+| Search + phone lookup | No | **0** | 9.1 s for 9 SerpApi calls (target was 5 s) |
+| Memory recall (3 hotels, parallel) | No (memory search) | **0** | ~1.0 s |
+| Call plans ×3 | No (template fill) | **0** | System prompt ≈ 234 tokens (budget 300), 7 dynamic vars + `hotel_notes` |
+| Live calls ×3 | ElevenLabs agent LLM | *pending* (`agent_llm`) | Needs real calls |
+| Availability extraction | Tool call first, then regex, then Backboard | **0** when the tool fires; ~200 per call on the Backboard fallback | Live: sample transcript → "available, $179", 197 tokens |
+| Remember the run | No (our code writes the summary) | **0** | ~1.2 s per hotel, after the email so it never delays the result |
+| **Backboard total** | | **0 on the happy path**; worst case ≈ 160 + 3 × 200 = 760 | Budget 1,200 |
+
+The pitch line: **Backboard costs 0 tokens on the happy path.** Every deterministic step (parsing, sorting, the prompt, validation, the memory summary) is plain code. The LLM is only a fallback.
+
+### What we learned / what we'd change
+
+1. **Backboard latency ruled it out of the live call.** Every model took 1.1–1.5 s per round trip through Backboard (gemini-2.5-flash-lite, gpt-4o-mini, gpt-4.1-nano, claude-haiku-4-5). That's 3× over our 400 ms bar for a voice turn, so the ElevenLabs agent's own LLM handles the conversation and Backboard runs only before and after.
+2. **Model choice by tokens, not just speed.** The latencies were within noise of each other, so we picked `gemini-2.5-flash-lite` for the fewest tokens (36 in / 5 out on the test prompt vs 81 / 13 for Haiku, which also wrapped its JSON in a code fence).
+3. **Backboard isn't OpenAI-compatible.** It has its own `/threads/messages` API, with no max-output-tokens parameter, so we cap output by asking for short JSON. Errors such as billing or an unknown model come back as **HTTP 200 with `status: FAILED`**, which a naive client treats as a real answer. We caught that on day one.
+4. **The free tier only covers Memory & RAG.** Chat completions needed the hackathon promo credit. We'd check billing scope first next time.
+5. **Memory without tokens.** Instead of letting Backboard's LLM extract memories from transcripts (which costs tokens), we write one deterministic line per call (outcome, rate, IVR key, hold, duration) and read it back as `{{hotel_notes}}`. The agent learns "press 1 for reservations" for next time at 0 tokens.
+6. **What we'd do with more time:**
+   - Stream Backboard replies and measure true time to first token. Today's numbers are full round trips.
+   - Use the model's real tokenizer instead of the 4-chars-per-token estimate for the prompt budget.
+   - Prompt caching on the ElevenLabs side: the system prompt is identical across all 3 calls, and only `dynamic_vars` change.
+   - Search is the slowest deterministic stage (9 s). Caching hotel phone numbers between runs would cut most of the 9 SerpApi calls.
 
 ## Done when
 
