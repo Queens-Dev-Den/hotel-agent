@@ -2,34 +2,37 @@
 
 **Owner:** Isaac (T4) · **Modules:** `extractor.py`, `email_service.py`, `tool_server.py` (the `record_availability` endpoint), the deck
 
-The email **is** the verification. A wrong subject or a missing field means the run doesn't count. We don't book, so the email reports **availability** for each hotel and includes **the full transcript of every call**.
+The email **is** the verification. A wrong subject or a missing field means the run doesn't count. We don't book, so the email highlights the **cheapest hotel with a room available**, with **that call's full transcript**, and lists the other hotels we called in one line each.
 
 ## Required email format
 
 - **Subject (exact):** `Team # X - Hotel Reservation Confirmed!` (X comes from `config.TEAM_NO`). Open question for organizers: does this string still apply when we only check availability? See [integration-and-demo.md](integration-and-demo.md#open-questions-for-organizers-ask-before-1030).
-- **Body:** a header with the search, then one section per hotel, cheapest first, then the transcript.
+- **Body:** a header with the search, a one-line summary, the highlighted hotel in full with its transcript, then one line per other hotel. If no hotel said yes, the cheapest hotel called is shown with "no room confirmed".
 
 ```
 Check-in: <request.check_in>
 Check-out: <request.check_out>
 Guests: <request.guests>
 
---- Hotel 1 of 3 ---
+We called the 3 cheapest hotels we found for these dates. Here is the cheapest one with a room available.
+
+=== Cheapest available hotel ===
 Hotel Name: <candidates[rank].name>
 Address: <candidates[rank].address>
 Phone: <candidates[rank].phone_e164>
-Availability: Available | Not available | Unknown (voicemail / no answer / error)
+Availability: Available
 Quoted Rate: <availability.quoted_rate or "not given">
 
 Transcript:
 Agent: ...
 Hotel: ...
 
---- Hotel 2 of 3 ---
-...
+=== Other hotels we called ===
+2. <name>, <phone>: Not available, rate not given
+3. <name>, <phone>: Unknown (voicemail / no answer / error), rate not given
 ```
 
-Hotel name, address and phone come from search data, not the call (see [contract rules](architecture.md#contract-rules)). Availability and the quoted rate come from the call. Transcripts are included verbatim from `calls[].transcript`. If a call has no transcript (for example, no answer), say "No transcript: <outcome>".
+Hotel name, address and phone come from search data, not the call (see [contract rules](architecture.md#contract-rules)). Availability and the quoted rate come from the call. Only the highlighted hotel's transcript is included, verbatim from `calls[].transcript`; if it has none, it says "No transcript: <outcome>". The `WARNING ... please cancel it` line still appears under any hotel that issued a reservation number.
 
 ## Deliverables
 
@@ -37,7 +40,7 @@ Hotel name, address and phone come from search data, not the call (see [contract
 - **`extractor.py` (zero tokens):**
   - `validate(payload)`: `available` is a boolean, `quoted_rate` parses to a number if present, `notes` is trimmed.
   - `from_transcript(text)`: regex fallback over the transcript for phrases like "we have a room", "available", "sold out", "no availability", "fully booked". Backboard (WS2) is the last fallback.
-- **`email_service.send(run) -> message_id`:** builds the subject from the constant, asserts every hotel section has its four fields and a transcript (or the "No transcript" line), sends **one** email through Resend, and writes `email.sent_at`.
+- **`email_service.send(run) -> message_id`:** builds the subject from the constant, asserts every hotel has its fields, picks the hotel to highlight (`best_index`), sends **one** email through Resend, and writes `email.sent_at`.
 - **Public URL** for the endpoint: cloudflared or ngrok, or a small deploy if the tunnel is flaky.
 - `tests/`: unit tests for the extractor and the subject/body format, including a body with mixed outcomes.
 
@@ -70,5 +73,5 @@ Hotel name, address and phone come from search data, not the call (see [contract
 
 ## Done when
 
-- One email arrives within ≤ 2 s of the last call's transcript being ready, with all three hotels, their availability and their full transcripts, 3 times out of 3.
+- One email arrives within ≤ 2 s of the last call's transcript being ready, highlighting the cheapest available hotel with its transcript and listing the others, 3 times out of 3.
 - Deck rehearsed and under 3 minutes.

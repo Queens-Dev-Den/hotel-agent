@@ -1,4 +1,4 @@
-"""WS4: build and send the single availability email (all hotels + transcripts).
+"""WS4: build and send the single availability email (cheapest available hotel + its transcript).
 
 Plain text only. Resend first, Gmail SMTP fallback.
 """
@@ -80,36 +80,67 @@ def _status_text(available: bool | None) -> str:
     return UNKNOWN_STATUS
 
 
+def best_index(hotels: list[HotelSection]) -> int:
+    """The hotel to highlight: the cheapest one that said it has a room.
+
+    Cheapest by quoted rate; hotels without a quote keep search-price order (hotels are
+    already cheapest first). If no hotel confirmed a room, the cheapest hotel overall.
+    """
+    available = [i for i, h in enumerate(hotels) if h.availability is True]
+    if not available:
+        return 0
+    return min(available, key=lambda i: (hotels[i].quoted_rate is None, hotels[i].quoted_rate or 0, i))
+
+
+def _rate_text(h: HotelSection) -> str:
+    return f"${h.quoted_rate:,.2f}" if h.quoted_rate is not None else "not given"
+
+
+def _warning(h: HotelSection) -> list[str]:
+    if not h.reservation_number:
+        return []
+    return [
+        f"WARNING: Hotel issued reservation # {h.reservation_number}. "
+        "No booking was intended, please cancel it."
+    ]
+
+
 def render_body(payload: EmailPayload) -> str:
-    """Header (dates, guests), then one section per hotel with its transcript."""
+    """Dates, then the cheapest available hotel in full with its transcript, then a
+    one-line summary of every other hotel we called."""
     req = payload.request
+    hotels = payload.hotels
+    best = best_index(hotels)
+    h = hotels[best]
+    found = h.availability is True
+    total = len(hotels)
+
     lines = [
         f"Check-in: {req.check_in.isoformat()}",
         f"Check-out: {req.check_out.isoformat()}",
         f"Guests: {req.guests}",
+        "",
+        f"We called the {total} cheapest hotel{'s' if total != 1 else ''} we found for these dates. "
+        + ("Here is the cheapest one with a room available." if found
+           else "None of them confirmed a room, so here is the cheapest one we called."),
+        "",
+        "=== Cheapest available hotel ===" if found else "=== Cheapest hotel (no room confirmed) ===",
+        f"Hotel Name: {h.name}",
+        f"Address: {h.address}",
+        f"Phone: {h.phone}",
+        f"Availability: {_status_text(h.availability)}",
+        f"Quoted Rate: {_rate_text(h)}",
+        *_warning(h),
+        "",
+        "Transcript:",
+        h.transcript or "",
     ]
-    total = len(payload.hotels)
-    for i, h in enumerate(payload.hotels, start=1):
-        rate = f"${h.quoted_rate:,.2f}" if h.quoted_rate is not None else "not given"
-        lines += [
-            "",
-            f"--- Hotel {i} of {total} ---",
-            f"Hotel Name: {h.name}",
-            f"Address: {h.address}",
-            f"Phone: {h.phone}",
-            f"Availability: {_status_text(h.availability)}",
-            f"Quoted Rate: {rate}",
-        ]
-        if h.reservation_number:
-            lines.append(
-                f"WARNING: Hotel issued reservation # {h.reservation_number}. "
-                "No booking was intended, please cancel it."
-            )
-        lines += [
-            "",
-            "Transcript:",
-            h.transcript or "",
-        ]
+    others = [(i, o) for i, o in enumerate(hotels) if i != best]
+    if others:
+        lines += ["", "=== Other hotels we called ==="]
+        for i, o in others:
+            lines.append(f"{i + 1}. {o.name}, {o.phone}: {_status_text(o.availability)}, rate {_rate_text(o)}")
+            lines += _warning(o)
     return "\n".join(lines) + "\n"
 
 
