@@ -164,8 +164,7 @@ def _verdict(run) -> str:
             said += f", quoted **${a.quoted_rate:.0f}/night** (online: ${online:.0f}/night)"
         lines.append(said + ".")
         if a.reservation_number:
-            lines.append(f"⚠️ The hotel issued reservation **#{a.reservation_number}**, but no booking was "
-                         "intended. Call them to cancel if you don't want it.")
+            lines.append(f"🧾 Reservation **#{a.reservation_number}**")
         links = _links(best)
         lines.append(f"{links} · 📞 `{best.phone_e164}` · {best.address}" if links else
                      f"📞 `{best.phone_e164}` · {best.address}")
@@ -192,6 +191,59 @@ def _verdict(run) -> str:
     return "\n\n".join(lines)
 
 
+def _render_token_breakdown(run, backboard: int, agent: int) -> None:
+    """Where every token went: counted tokens by step, the cached context we don't count, per call."""
+    t = run.telemetry.tokens
+    st.markdown(f"**{backboard + agent:,} tokens this run** = Backboard {backboard:,} + voice agent {agent:,}. "
+                "The voice agent number matches the ElevenLabs dashboard.")
+    st.dataframe([
+        {"Step": "1. Understand the prompt", "Service": "Backboard",
+         "Tokens": t.get("backboard_parse", 0), "What it is": "0 when our regex reads the prompt; LLM only as a fallback"},
+        {"Step": "2. Search hotels", "Service": "SerpApi",
+         "Tokens": 0, "What it is": f"No LLM. {t.get('serpapi_searches', 0)} searches"},
+        {"Step": "3. Past-call notes", "Service": "Backboard memory",
+         "Tokens": 0, "What it is": "Memory search and our own one-line summaries, no LLM"},
+        {"Step": "4. Calls: what the agent heard", "Service": "ElevenLabs",
+         "Tokens": t.get("agent_llm_input", 0), "What it is": "New input sent to the LLM each turn (mostly what the hotel said)"},
+        {"Step": "4. Calls: what the agent said", "Service": "ElevenLabs",
+         "Tokens": t.get("agent_llm_output", 0), "What it is": "The agent's replies and tool calls"},
+        {"Step": "5. Read the answer", "Service": "Backboard",
+         "Tokens": t.get("backboard_extract", 0), "What it is": "0 when the agent's tool call or our regex has the answer"},
+        {"Step": "Total", "Service": "", "Tokens": backboard + agent, "What it is": ""},
+    ], hide_index=True, width="stretch")
+
+    cached = t.get("agent_llm_cache_read", 0) + t.get("agent_llm_cache_write", 0)
+    st.markdown("**Not in the total: cached context**")
+    st.caption("On every turn the agent re-reads ElevenLabs' built-in instructions, our prompt and the "
+               "conversation so far (~3.5k tokens). That comes from cache and is billed at a fraction, so "
+               "ElevenLabs doesn't count it as tokens used.")
+    st.dataframe([
+        {"Item": "Cache reads (context re-read each turn)", "Value": f"{t.get('agent_llm_cache_read', 0):,} tokens"},
+        {"Item": "Cache writes (context stored, first turn of each call)", "Value": f"{t.get('agent_llm_cache_write', 0):,} tokens"},
+        {"Item": "Everything the LLM processed (incl. cache and interrupted replies)", "Value": f"{t.get('agent_llm_context', 0):,} tokens"},
+        {"Item": "ElevenLabs LLM credits charged", "Value": f"{t.get('agent_llm_credits', 0):,}"},
+        {"Item": "Call time (all calls added up)", "Value": f"{sum(c.duration_s for c in run.calls) / 60:.1f} min"},
+    ], hide_index=True, width="stretch")
+
+    rows = []
+    names = {c.rank: c.name for c in run.candidates}
+    for call in sorted(run.calls, key=lambda c: c.candidate_rank):
+        k = f"call{call.candidate_rank}_"
+        rows.append({
+            "Hotel": f"{call.candidate_rank}. {names.get(call.candidate_rank, '?')}",
+            "Outcome": call.outcome,
+            "Call length": f"{call.duration_s:.0f}s",
+            "Heard (in)": t.get(k + "agent_llm_input", 0),
+            "Said (out)": t.get(k + "agent_llm_output", 0),
+            "Tokens": t.get(k + "agent_llm", 0),
+            "Cached reads": t.get(k + "agent_llm_cache_read", 0),
+            "Credits": t.get(k + "agent_llm_credits", 0),
+        })
+    if rows and cached:
+        st.markdown("**Per call**")
+        st.dataframe(rows, hide_index=True, width="stretch")
+
+
 def _render_summary(state: dict, started: float) -> None:
     if state.get("error"):
         st.error(f"Run failed: {state['error']}")
@@ -213,14 +265,8 @@ def _render_summary(state: dict, started: float) -> None:
     m2.metric("Tokens", f"{backboard + agent:,}")
     m3.metric("SerpApi searches", t.get("serpapi_searches", 0))
     m4.metric("Email", "Sent ✓" if run.email else "Not sent")
-    with st.expander("Token and usage breakdown"):
-        st.table([
-            {"Item": "Backboard (prompt, fallback, memory)",
-             "Usage": f"{t.get('backboard_in', 0):,} in + {t.get('backboard_out', 0):,} out tokens"},
-            {"Item": "Voice agent LLM", "Usage": f"{agent:,} tokens"},
-            {"Item": "Call time (all calls added up)", "Usage": f"{sum(c.duration_s for c in run.calls) / 60:.1f} min"},
-            {"Item": "SerpApi", "Usage": f"{t.get('serpapi_searches', 0)} searches"},
-        ])
+    with st.expander("Token and usage breakdown", expanded=True):
+        _render_token_breakdown(run, backboard, agent)
     with st.expander("Transcripts"):
         for call in run.calls:
             st.markdown(f"**Hotel {call.candidate_rank}** · {call.outcome}")

@@ -188,10 +188,16 @@ def from_transcript(text: str | None, candidate_rank: int) -> Availability:
             return unknown
         if signal is None:
             continue
+        rate = None
+        if signal:
+            # The rate often comes in its own line ("Yes, I have a room." ... "It's $129.").
+            # Use the answer's own rate, else the hotel's latest one (corrections win).
+            rate = _find_rate(utterance) or next(
+                (r for u in reversed(utterances) if (r := _find_rate(u)) is not None), None)
         return Availability(
             candidate_rank=candidate_rank,
             available=signal,
-            quoted_rate=_find_rate(utterance) if signal else None,
+            quoted_rate=rate,
             notes="",
             source="transcript",
             reservation_number=reservation_number,
