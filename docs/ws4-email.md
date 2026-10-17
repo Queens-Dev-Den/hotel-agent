@@ -6,7 +6,7 @@ The email **is** the verification. A wrong subject or a missing field means the 
 
 ## Required email format
 
-- **Subject (exact):** `Team # X - Hotel Reservation Confirmed!` (X comes from `config.TEAM_NO`). Open question for organizers: does this string still apply when we only check availability? See [integration-and-demo.md](integration-and-demo.md#open-questions-for-organizers-ask-before-1030).
+- **Subject (exact):** `Team # X - Hotel Quotes Confirmed` (X comes from `config.TEAM_NO`). Open question for organizers: does this string still apply when we only check availability? See [integration-and-demo.md](integration-and-demo.md#open-questions-for-organizers-ask-before-1030).
 - **Body:** a header with the search, a one-line summary, the highlighted hotel in full with its transcript, then one line per other hotel. If no hotel said yes, the cheapest hotel called is shown with "no room confirmed".
 
 ```

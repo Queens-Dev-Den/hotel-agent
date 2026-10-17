@@ -29,8 +29,20 @@ RESEND_URL = "https://api.resend.com/emails"
 UNKNOWN_STATUS = "Unknown (voicemail / no answer / error)"
 
 
+TEAM_EMAILS = (
+    "isaacoue4@gmail.com",
+    "richardguo64@gmail.com",
+    "zacharygazaille@gmail.com",
+    "jordanbouckley@gmail.com",
+)
+
+
 def subject() -> str:
-    return f"Team # {config.TEAM_NO} - Hotel Reservation Confirmed!"
+    return f"Team # {config.TEAM_NO} - Hotel Quotes Confirmed"
+
+
+def _signature() -> list[str]:
+    return ["", "--", f"Team {config.TEAM_NO}", *TEAM_EMAILS]
 
 
 def _status_for(rank: int, run: Run, call: CallResult | None) -> Availability | None:
@@ -169,6 +181,7 @@ def render_body(payload: EmailPayload) -> str:
         for i, o in others:
             lines.append(f"{i + 1}. {o.name}, {o.phone}: {_status_text(o.availability)}, "
                          f"rate {_rate_text(o)}{_extras(o)}")
+    lines += _signature()
     return "\n".join(lines) + "\n"
 
 
