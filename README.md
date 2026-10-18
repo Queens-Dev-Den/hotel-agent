@@ -1,4 +1,4 @@
-# Team [X] — One-Shot Hotel Availability Agent (TechTO Fast & Frugal)
+# Team 15 — One-Shot Hotel Availability Agent (TechTO Fast & Frugal)
 
 Each teammate owns one workstream doc.
 
